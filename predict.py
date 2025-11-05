@@ -8,7 +8,6 @@ from torchvision import transforms, models
 from torchvision.models import VGG16_Weights, DenseNet121_Weights, EfficientNet_B0_Weights
 from PIL import Image
 import json
-import time
 
 def get_input_args():
     """
@@ -122,19 +121,10 @@ def main():
     # load the category file mapping
     with open(args.category_names, 'r') as f:
         cat_to_name = json.load(f)
-
-    # start time for prediction
-    start_time = time.time()
     
     # predict the flower name
     probs, classes = predict(args.image_path, model, device, args.top_k)
-
-    # end time for prediction
-    end_time = time.time()
-
-    # calculate time taken to predict
-    predict_time = end_time - start_time
-    
+ 
     # use the category class file to fine names
     flower_names = [cat_to_name[cls] for cls in classes]
     
