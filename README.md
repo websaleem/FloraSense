@@ -8,7 +8,7 @@ This repository consists of all the corresponding image labels, sample images fo
 * The notebook file can be used to train and test the image.
 
 ### Programming Project
-* [Intro to Python Project - Image Classifier:] (https://github.com/websaleem/image-classifier) This project allows users to train one of the models ['vgg16', 'densenet121', 'efficientnet_b0'] using flower data-set [download] (https://s3.amazonaws.com/content.udacity-data.com/nd089/flower_data.tar.gz) and predict the flower image class and probabilites, it also prints the top-k class and probabilites.
+* [Intro to Python Project - Image Classifier:](https://github.com/websaleem/image-classifier) This project allows users to train one of the models ['vgg16', 'densenet121', 'efficientnet_b0'] using flower data-set [download](https://s3.amazonaws.com/content.udacity-data.com/nd089/flower_data.tar.gz) and predict the flower image class and probabilites, it also prints the top-k class and probabilites.
 
 ### How to Run?
 * Training help:
