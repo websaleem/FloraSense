@@ -10,9 +10,8 @@ This repository consists of all the corresponding image labels, sample images fo
 ### Programming Project
 * [Intro to Python Project - Image Classifier:](https://github.com/websaleem/image-classifier) This project allows users to train one of the models ['vgg16', 'densenet121', 'efficientnet_b0'] using flower data-set [download](https://s3.amazonaws.com/content.udacity-data.com/nd089/flower_data.tar.gz) and predict the flower image class and probabilites, it also prints the top-k class and probabilites.
 
-### How to Run?
-* Training help:
-workspace$ python train.py -h
+### Training help:
+```
 usage: train.py [-h] [--arch ARCH] [--learning_rate LEARNING_RATE] [--hidden_layers HIDDEN_LAYERS]
                 [--epochs EPOCHS] [--gpu]
                 data_dir
@@ -32,7 +31,8 @@ options:
   --epochs EPOCHS       epochs to run
   --gpu                 Use gpu if available
 
-* Prediction help:
+### Prediction help:
+```
 usage: predict.py [-h] [--arch ARCH] [--top_k TOP_K] [--category_names CATEGORY_NAMES] [--gpu]
                   image_path
 
