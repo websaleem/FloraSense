@@ -85,8 +85,8 @@ def train(args, device):
     # Load the datasets with ImageFolder
     image_datasets = {
         'train': datasets.ImageFolder(train_dir, transform=data_transforms['train']),
-        'valid': datasets.ImageFolder(train_dir, transform=data_transforms['valid']),
-        'test': datasets.ImageFolder(train_dir, transform=data_transforms['test'])
+        'valid': datasets.ImageFolder(valid_dir, transform=data_transforms['valid']),
+        'test': datasets.ImageFolder(test_dir, transform=data_transforms['test'])
     }
 
     # Using the image datasets and the transforms, define the dataloaders
