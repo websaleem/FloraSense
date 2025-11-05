@@ -30,7 +30,7 @@ options:
                         Number of hidden layers
   --epochs EPOCHS       epochs to run
   --gpu                 Use gpu if available
-
+```
 ### Prediction help:
 ```
 usage: predict.py [-h] [--arch ARCH] [--top_k TOP_K] [--category_names CATEGORY_NAMES] [--gpu]
@@ -48,7 +48,7 @@ options:
   --category_names CATEGORY_NAMES
                         Path of JSON file having class name mapping.
   --gpu                 Use gpu if available
-  
+```
 ## Dependencies
 
 Each directory has a `requirements.txt` describing the minimal dependencies required to run the notebooks in that directory.
