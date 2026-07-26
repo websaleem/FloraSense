@@ -1,0 +1,12 @@
+.git/
+__pycache__/
+assets/
+*.ipynb
+.DS_Store
+.gitignore
+.dockerignore
+README.md
+LICENSE
+deploy.sh
+cloudformation.yaml
+flowers/

@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="FloraSense — Upload a flower image and identify its species using deep learning powered by PyTorch.">
+    <title>FloraSense — AI-Powered Flower Identification</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ------------------------------------------------------------------ */
+        /*  Design tokens                                                     */
+        /* ------------------------------------------------------------------ */
+        :root {
+            --bg:           #0c0f1a;
+            --surface:      #151929;
+            --surface-2:    #1c2137;
+            --border:       rgba(255,255,255,.06);
+            --text:         #e4e6f0;
+            --text-muted:   #7c819a;
+            --accent:       #6c5ce7;
+            --accent-light: #a29bfe;
+            --accent-glow:  rgba(108,92,231,.25);
+            --success:      #00cec9;
+            --pink:         #fd79a8;
+            --orange:       #fdcb6e;
+            --radius:       16px;
+            --font:         'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /*  Reset & base                                                      */
+        /* ------------------------------------------------------------------ */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+        }
+
+        /* Subtle animated gradient background */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 60% 50% at 20% 10%, rgba(108,92,231,.12) 0%, transparent 60%),
+                radial-gradient(ellipse 50% 40% at 80% 80%, rgba(253,121,168,.08) 0%, transparent 60%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /*  Layout                                                            */
+        /* ------------------------------------------------------------------ */
+        .container {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 680px;
+            padding: 48px 24px 64px;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /*  Header                                                            */
+        /* ------------------------------------------------------------------ */
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        header .icon {
+            font-size: 48px;
+            margin-bottom: 8px;
+            filter: drop-shadow(0 0 18px var(--accent-glow));
+        }
+        header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -.4px;
+            background: linear-gradient(135deg, var(--accent-light), var(--pink));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        header p {
+            margin-top: 8px;
+            color: var(--text-muted);
+            font-size: 14px;
+            font-weight: 400;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /*  Glass card                                                        */
+        /* ------------------------------------------------------------------ */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            backdrop-filter: blur(16px);
+            padding: 32px;
+            margin-bottom: 24px;
+            transition: box-shadow .3s;
+        }
+        .card:hover { box-shadow: 0 0 40px rgba(108,92,231,.08); }
+
+        /* ------------------------------------------------------------------ */
+        /*  Drop zone                                                         */
+        /* ------------------------------------------------------------------ */
+        .dropzone {
+            border: 2px dashed rgba(108,92,231,.35);
+            border-radius: 12px;
+            padding: 48px 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color .25s, background .25s;
+            position: relative;
+        }
+        .dropzone:hover,
+        .dropzone.dragover {
+            border-color: var(--accent);
+            background: rgba(108,92,231,.06);
+        }
+        .dropzone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+        .dropzone .dz-icon {
+            font-size: 40px;
+            margin-bottom: 12px;
+        }
+        .dropzone .dz-label {
+            font-size: 15px;
+            color: var(--text-muted);
+        }
+        .dropzone .dz-label strong {
+            color: var(--accent-light);
+            font-weight: 600;
+        }
+
+        /* Image preview */
+        .preview-wrapper {
+            display: none;
+            margin-top: 20px;
+            justify-content: center;
+        }
+        .preview-wrapper img {
+            max-width: 100%;
+            max-height: 280px;
+            border-radius: 10px;
+            object-fit: cover;
+            box-shadow: 0 8px 32px rgba(0,0,0,.35);
+        }
+
+        /* ------------------------------------------------------------------ */
+        /*  Button                                                            */
+        /* ------------------------------------------------------------------ */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 24px;
+            padding: 12px 32px;
+            border: none;
+            border-radius: 10px;
+            font-family: var(--font);
+            font-size: 15px;
+            font-weight: 600;
+            color: #fff;
+            background: linear-gradient(135deg, var(--accent), #8b5cf6);
+            cursor: pointer;
+            transition: transform .15s, box-shadow .25s, opacity .2s;
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 28px var(--accent-glow);
+        }
+        .btn:active { transform: scale(.97); }
+        .btn:disabled {
+            opacity: .45;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /*  Spinner                                                           */
+        /* ------------------------------------------------------------------ */
+        .spinner {
+            display: none;
+            width: 22px; height: 22px;
+            border: 3px solid rgba(255,255,255,.2);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin .7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ------------------------------------------------------------------ */
+        /*  Results                                                           */
+        /* ------------------------------------------------------------------ */
+        #results-card { display: none; }
+
+        .result-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .result-header .badge {
+            background: linear-gradient(135deg, var(--success), #55efc4);
+            color: #0c0f1a;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 6px;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+        .result-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .result-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 14px;
+            opacity: 0;
+            transform: translateX(-12px);
+            animation: fadeInRow .4s ease forwards;
+        }
+        .result-row:nth-child(2) { animation-delay: .05s; }
+        .result-row:nth-child(3) { animation-delay: .10s; }
+        .result-row:nth-child(4) { animation-delay: .15s; }
+        .result-row:nth-child(5) { animation-delay: .20s; }
+
+        @keyframes fadeInRow {
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .result-rank {
+            flex-shrink: 0;
+            width: 28px; height: 28px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 700;
+            background: var(--surface-2);
+            color: var(--text-muted);
+        }
+        .result-row:first-child .result-rank {
+            background: linear-gradient(135deg, var(--accent), #8b5cf6);
+            color: #fff;
+        }
+
+        .result-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .result-name {
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: capitalize;
+            margin-bottom: 6px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .bar-track {
+            height: 8px;
+            background: var(--surface-2);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            background: linear-gradient(90deg, var(--accent), var(--accent-light));
+            width: 0;
+            transition: width .6s cubic-bezier(.4,0,.2,1);
+        }
+        .result-row:first-child .bar-fill {
+            background: linear-gradient(90deg, var(--accent), var(--pink));
+        }
+
+        .result-prob {
+            flex-shrink: 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--accent-light);
+            width: 52px;
+            text-align: right;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /*  Error                                                             */
+        /* ------------------------------------------------------------------ */
+        .error-msg {
+            display: none;
+            margin-top: 16px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-size: 13px;
+            color: #fab1a0;
+            background: rgba(214,48,49,.12);
+            border: 1px solid rgba(214,48,49,.25);
+        }
+
+        /* ------------------------------------------------------------------ */
+        /*  Footer                                                            */
+        /* ------------------------------------------------------------------ */
+        footer {
+            text-align: center;
+            padding: 24px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+        footer a {
+            color: var(--accent-light);
+            text-decoration: none;
+        }
+        footer a:hover { text-decoration: underline; }
+
+        /* ------------------------------------------------------------------ */
+        /*  Responsive                                                        */
+        /* ------------------------------------------------------------------ */
+        @media (max-width: 480px) {
+            .container { padding: 32px 16px 48px; }
+            header h1 { font-size: 22px; }
+            .card { padding: 20px; }
+            .dropzone { padding: 32px 16px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Header -->
+    <header>
+        <div class="icon">🌸</div>
+        <h1>FloraSense</h1>
+        <p>Upload a flower photo and let AI identify its species</p>
+    </header>
+
+    <!-- Upload card -->
+    <div class="card" id="upload-card">
+        <div class="dropzone" id="dropzone">
+            <input type="file" id="file-input" accept="image/*">
+            <div class="dz-icon">📷</div>
+            <div class="dz-label">
+                Drag &amp; drop an image here, or <strong>browse</strong>
+            </div>
+        </div>
+        <div class="preview-wrapper" id="preview-wrapper">
+            <img id="preview-img" alt="Preview of uploaded flower image">
+        </div>
+        <div style="text-align:center;">
+            <button class="btn" id="classify-btn" disabled>
+                <span id="btn-text">Identify Flower</span>
+                <div class="spinner" id="spinner"></div>
+            </button>
+        </div>
+        <div class="error-msg" id="error-msg"></div>
+    </div>
+
+    <!-- Results card -->
+    <div class="card" id="results-card">
+        <div class="result-header">
+            <span class="badge">Top Predictions</span>
+            <h2 id="top-flower-name"></h2>
+        </div>
+        <div id="results-list"></div>
+    </div>
+</div>
+
+<footer>
+    Built with PyTorch &amp; FastAPI &mdash; <a href="https://github.com/websaleem/FloraSense" target="_blank" rel="noopener">FloraSense on GitHub</a>
+</footer>
+
+<script>
+(function () {
+    'use strict';
+
+    const dropzone   = document.getElementById('dropzone');
+    const fileInput  = document.getElementById('file-input');
+    const previewWr  = document.getElementById('preview-wrapper');
+    const previewImg = document.getElementById('preview-img');
+    const btn        = document.getElementById('classify-btn');
+    const btnText    = document.getElementById('btn-text');
+    const spinner    = document.getElementById('spinner');
+    const errorMsg   = document.getElementById('error-msg');
+    const resCard    = document.getElementById('results-card');
+    const resList    = document.getElementById('results-list');
+    const topName    = document.getElementById('top-flower-name');
+
+    let selectedFile = null;
+
+    /* ---------- Drag & drop ---------- */
+    ['dragenter', 'dragover'].forEach(evt =>
+        dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.add('dragover'); })
+    );
+    ['dragleave', 'drop'].forEach(evt =>
+        dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.remove('dragover'); })
+    );
+    dropzone.addEventListener('drop', e => {
+        const files = e.dataTransfer.files;
+        if (files.length) handleFile(files[0]);
+    });
+
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length) handleFile(fileInput.files[0]);
+    });
+
+    function handleFile(file) {
+        if (!file.type.startsWith('image/')) {
+            showError('Please upload an image file (JPEG, PNG, etc.).');
+            return;
+        }
+        selectedFile = file;
+        hideError();
+        resCard.style.display = 'none';
+
+        const reader = new FileReader();
+        reader.onload = e => {
+            previewImg.src = e.target.result;
+            previewWr.style.display = 'flex';
+        };
+        reader.readAsDataURL(file);
+        btn.disabled = false;
+    }
+
+    /* ---------- Classify ---------- */
+    btn.addEventListener('click', async () => {
+        if (!selectedFile) return;
+        setLoading(true);
+        hideError();
+        resCard.style.display = 'none';
+
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+
+        try {
+            const resp = await fetch('/predict?top_k=5', { method: 'POST', body: formData });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.detail || `Server error (${resp.status})`);
+            }
+            const data = await resp.json();
+            renderResults(data.predictions);
+        } catch (err) {
+            showError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    });
+
+    /* ---------- Render ---------- */
+    function renderResults(predictions) {
+        resList.innerHTML = '';
+        if (!predictions || !predictions.length) {
+            showError('No predictions returned.');
+            return;
+        }
+
+        topName.textContent = predictions[0].flower_name;
+
+        predictions.forEach((p, i) => {
+            const pct = (p.probability * 100).toFixed(1);
+            const row = document.createElement('div');
+            row.className = 'result-row';
+            row.innerHTML = `
+                <div class="result-rank">${i + 1}</div>
+                <div class="result-info">
+                    <div class="result-name">${p.flower_name}</div>
+                    <div class="bar-track"><div class="bar-fill" id="bar-${i}"></div></div>
+                </div>
+                <div class="result-prob">${pct}%</div>
+            `;
+            resList.appendChild(row);
+        });
+
+        resCard.style.display = 'block';
+
+        // Animate bars after a tiny delay so the CSS transition fires
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                predictions.forEach((p, i) => {
+                    document.getElementById(`bar-${i}`).style.width = `${(p.probability * 100).toFixed(1)}%`;
+                });
+            });
+        });
+    }
+
+    /* ---------- Helpers ---------- */
+    function setLoading(on) {
+        btn.disabled = on;
+        spinner.style.display = on ? 'block' : 'none';
+        btnText.textContent = on ? 'Identifying…' : 'Identify Flower';
+    }
+
+    function showError(msg) {
+        errorMsg.textContent = msg;
+        errorMsg.style.display = 'block';
+    }
+    function hideError() {
+        errorMsg.style.display = 'none';
+    }
+})();
+</script>
+
+</body>
+</html>

@@ -29,11 +29,12 @@ def get_input_args():
     return parser.parse_args()
 
 # Save the checkpoint 
-def save_checkpoint(model, class_to_idx):
+def save_checkpoint(model, class_to_idx, suffix="latest"):
     """
-        Save the model to the checkpoint file
+        Save the model to the checkpoint file.
+        suffix: 'best' for best validation loss, 'latest' for end-of-training.
     """
-    checkpoint_file = f'./checkpoint_{model.arch}.pth'
+    checkpoint_file = f'./checkpoint_{model.arch}_{suffix}.pth'
     
     model.class_to_idx = class_to_idx
 
@@ -68,13 +69,13 @@ def train(args, device):
                                      transforms.Normalize([0.485, 0.456, 0.406],
                                                           [0.229, 0.224, 0.225])
                                    ]),
-        'valid': transforms.Compose([transforms.Resize(255),
+        'valid': transforms.Compose([transforms.Resize(256),
                                      transforms.CenterCrop(224),
                                      transforms.ToTensor(),
                                      transforms.Normalize([0.485, 0.456, 0.406],
                                                           [0.229, 0.224, 0.225])
                                    ]), 
-        'test': transforms.Compose([transforms.Resize(255),
+        'test': transforms.Compose([transforms.Resize(256),
                                      transforms.CenterCrop(224),
                                      transforms.ToTensor(),
                                      transforms.Normalize([0.485, 0.456, 0.406],
@@ -112,7 +113,8 @@ def train(args, device):
         model = models.vgg16(weights=VGG16_Weights.DEFAULT)
         input_features = model.classifier[0].in_features
 
-    output_features = 102
+    # Dynamically determine output features from the dataset
+    output_features = len(image_datasets['train'].classes)
 
     # freeze feature parameters for our model
     for param in model.features.parameters():
@@ -131,8 +133,8 @@ def train(args, device):
     # use the NLLLoss criterion
     criterion = nn.NLLLoss()
 
-    # define optimizer """
-    optimizer = optim.Adam(model.classifier.parameters(), lr=0.001)
+    # define optimizer
+    optimizer = optim.Adam(model.classifier.parameters(), lr=args.learning_rate)
 
     # based on the device, choose where to run the model training
     model.to(device)
@@ -140,6 +142,7 @@ def train(args, device):
     epochs = args.epochs
     validation_step = 0
     validation_after_steps = 34
+    best_val_loss = float('inf')
 
     # iterate to each epochs for training
     for epoch in range(epochs):
@@ -197,20 +200,30 @@ def train(args, device):
                         accuracy += torch.mean(equals.type(torch.FloatTensor)).item()
 
 
+                avg_val_loss = val_loss / len(dataloaders['valid'])
+                avg_val_accuracy = accuracy / len(dataloaders['valid'])
+
                 tqdm.write(f"Epoch: {epoch+1}/{epochs}, Validation: {validation_step}, "
                 f"Training loss: {running_loss/validation_after_steps:.3f}, "
-                f"Validation loss: {val_loss/len(dataloaders['valid']):.3f}, "
-                f"Validation accuracy: {accuracy/len(dataloaders['valid']):.3f}")
+                f"Validation loss: {avg_val_loss:.3f}, "
+                f"Validation accuracy: {avg_val_accuracy:.3f}")
+
+                # Save best checkpoint if validation loss improved
+                if avg_val_loss < best_val_loss:
+                    best_val_loss = avg_val_loss
+                    model.arch = args.arch
+                    save_checkpoint(model, image_datasets['train'].class_to_idx, suffix="best")
+                    tqdm.write(f"--> Saved new best checkpoint! (val_loss: {avg_val_loss:.4f})")
 
                 # revert back to training mode
                 running_loss = 0
                 model.train()
 
-    # save the checkpoint
+    # save the final (latest) checkpoint
     model.arch = args.arch
-    save_checkpoint(model, image_datasets['train'].class_to_idx)
+    save_checkpoint(model, image_datasets['train'].class_to_idx, suffix="latest")
 
-    print(f"Model '{args.arch}' trained and checkpoint saved.")
+    print(f"Model '{args.arch}' trained. Checkpoints saved: best & latest.")
 
 def main():
     """
