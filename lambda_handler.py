@@ -68,13 +68,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Allow requests from the frontend
+# Configure CORS securely from environment or default domains
+allowed_origins_env = os.environ.get(
+    "ALLOWED_ORIGINS",
+    "https://florasense.websaleem.com,https://dev.florasense.websaleem.com,https://websaleem.com,http://localhost:8000"
+)
+allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust this to ["https://websaleem.com"] in strict production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=allowed_origins,
+    allow_credentials="*" not in allowed_origins,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 # Serve static assets (CSS / JS / images if any)
@@ -136,7 +142,8 @@ async def predict_flower(file: UploadFile = File(...), top_k: int = 5):
             })
         return JSONResponse(content={"predictions": results})
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Error during flower prediction inference: {e}")
+        raise HTTPException(status_code=500, detail="An internal error occurred during image prediction.")
     finally:
         os.unlink(tmp_path)
 
