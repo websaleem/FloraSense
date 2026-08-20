@@ -1,0 +1,7 @@
+[tool.pytest.ini_options]
+# The code under test ships inside the Lambda image, so it is a plain module
+# directory rather than an installed package. Putting it on sys.path here keeps
+# `pytest` working from the repository root with no shim in the tests
+# themselves and no editable install step in CI.
+pythonpath = ["backend/lambda"]
+testpaths = ["tests"]

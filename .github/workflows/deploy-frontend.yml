@@ -1,0 +1,72 @@
+name: Deploy FloraSense Frontend
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+    paths:
+      - 'website/**'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-2
+
+      - name: Deploy Website to S3 and Invalidate CloudFront
+        env:
+          PROD_DIST_ID: ${{ secrets.FLORASENSE_PROD_CF_DIST_ID }}
+          DEV_DIST_ID: ${{ secrets.FLORASENSE_DEV_CF_DIST_ID }}
+        run: |
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            BUCKET="florasense.websaleem.com"
+            DIST_ID="$PROD_DIST_ID"
+            echo "=== Deploying to PRODUCTION ($BUCKET) ==="
+          else
+            BUCKET="dev.florasense.websaleem.com"
+            DIST_ID="$DEV_DIST_ID"
+            echo "=== Deploying to DEVELOPMENT ($BUCKET) ==="
+          fi
+
+          if [ -z "$DIST_ID" ]; then
+            echo "::error::Distribution id secret is empty for this branch."
+            exit 1
+          fi
+
+          # No dev/prod URL rewriting is needed here, unlike the other projects:
+          # the page calls the API with a relative fetch('/predict'), and
+          # CloudFront routes that path to the Lambda origin on the same domain.
+          # Each distribution already points at its own backend, so the same
+          # HTML is correct on both channels.
+
+          # index.html is served no-cache so a redeploy is visible immediately.
+          # The page is tiny and the expensive work (inference) is never cached,
+          # so there is nothing to gain from caching the shell at the edge.
+          SYNC_OUTPUT=$(aws s3 sync website/ s3://$BUCKET/ \
+            --delete \
+            --cache-control "no-cache, must-revalidate" \
+            --content-type "text/html; charset=utf-8" | tee /dev/stderr)
+
+          # Invalidate only what actually changed. CloudFront gives 1,000 free
+          # invalidation paths a month and bills beyond that, so a blanket "/*"
+          # on every push is wasteful when the sync already tells us the answer.
+          PATHS=$(echo "$SYNC_OUTPUT" | grep -oE "s3://$BUCKET/[^ ]+" | sed "s|s3://$BUCKET||g")
+
+          if [ -z "$PATHS" ]; then
+            echo "No files changed. Skipping CloudFront invalidation."
+          else
+            PATHS_SPACED=$(echo "$PATHS" | tr '\n' ' ')
+            echo "Invalidating paths: $PATHS_SPACED"
+            aws cloudfront create-invalidation --distribution-id $DIST_ID --paths $PATHS_SPACED
+          fi
