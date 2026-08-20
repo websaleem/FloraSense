@@ -19,7 +19,7 @@ Parameters:
 
   MemorySize:
     Type: Number
-    Default: 512
+    Default: 2048
     AllowedValues: [512, 1024, 2048, 3072]
     Description: Lambda memory in MB. VGG16 may need 1024+.
 
@@ -32,9 +32,48 @@ Parameters:
 
   Arch:
     Type: String
-    Default: vgg16
+    Default: efficientnet_b0
     AllowedValues: [vgg16, densenet121, efficientnet_b0]
     Description: Model architecture to load at startup.
+
+  DeployFunction:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: >
+      Whether to create the Lambda function and its URL. Must be 'false' on the
+      very first deploy: the function's ImageUri points into an ECR repository
+      that this same stack is only just creating, so on a fresh account there is
+      no image to point at and the stack rolls back. deploy.sh sets this
+      automatically -- false to bootstrap the repository, then true once an
+      image has been pushed. It must never be flipped back to false against a
+      live stack, which would delete the running function.
+
+  DevDistributionId:
+    Type: String
+    Default: ''
+    Description: >
+      CloudFront distribution id allowed to invoke the Function URL for the dev
+      channel. Left empty by default and passed in at deploy time: the id is a
+      scrub target in expressions.txt and must not be committed. With both this
+      and ProdDistributionId empty, the function is deployed with no invoke
+      permission at all -- reachable only via signed AWS SDK calls, which is the
+      safe default rather than a broken one.
+
+  ProdDistributionId:
+    Type: String
+    Default: ''
+    Description: CloudFront distribution id allowed to invoke the Function URL for production.
+
+# ---------------------------------------------------------------------------
+#  Conditions
+# ---------------------------------------------------------------------------
+Conditions:
+  CreateFunction: !Equals [!Ref DeployFunction, 'true']
+  HasDevDistribution: !Not [!Equals [!Ref DevDistributionId, '']]
+  HasProdDistribution: !Not [!Equals [!Ref ProdDistributionId, '']]
+  CreateDevPermission: !And [!Condition CreateFunction, !Condition HasDevDistribution]
+  CreateProdPermission: !And [!Condition CreateFunction, !Condition HasProdDistribution]
 
 # ---------------------------------------------------------------------------
 #  Resources
@@ -86,6 +125,7 @@ Resources:
   LambdaFunction:
     Type: AWS::Lambda::Function
     DependsOn: ECRRepository
+    Condition: CreateFunction
     Properties:
       FunctionName: !Sub '${AppName}-api'
       PackageType: Image
@@ -103,25 +143,39 @@ Resources:
   # ---- Function URL (public HTTPS endpoint) ----
   LambdaFunctionUrl:
     Type: AWS::Lambda::Url
+    Condition: CreateFunction
     Properties:
       TargetFunctionArn: !GetAtt LambdaFunction.Arn
-      AuthType: NONE
-      Cors:
-        AllowOrigins:
-          - '*'
-        AllowMethods:
-          - '*'
-        AllowHeaders:
-          - '*'
+      # AWS_IAM, not NONE. Every request must be SigV4-signed, and CloudFront
+      # signs them via Origin Access Control. The practical effects: the URL
+      # cannot be called directly, so nobody can bypass the CDN or run up your
+      # bill against the raw endpoint, and no anonymous-invoke permission needs
+      # to exist. No Cors block either -- CloudFront serves the page and the API
+      # on one domain, so requests are same-origin and CORS never applies.
+      AuthType: AWS_IAM
 
-  # ---- Permission for unauthenticated invocation ----
-  LambdaFunctionUrlPermission:
+  # ---- Permissions: only CloudFront may invoke, and only these distributions ----
+  LambdaUrlPermissionDev:
     Type: AWS::Lambda::Permission
+    Condition: CreateDevPermission
     Properties:
       FunctionName: !Ref LambdaFunction
       Action: lambda:InvokeFunctionUrl
-      Principal: '*'
-      FunctionUrlAuthType: NONE
+      Principal: cloudfront.amazonaws.com
+      FunctionUrlAuthType: AWS_IAM
+      # SourceArn pins this to one distribution. Without it any CloudFront
+      # distribution in any account could invoke the function.
+      SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${DevDistributionId}'
+
+  LambdaUrlPermissionProd:
+    Type: AWS::Lambda::Permission
+    Condition: CreateProdPermission
+    Properties:
+      FunctionName: !Ref LambdaFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: cloudfront.amazonaws.com
+      FunctionUrlAuthType: AWS_IAM
+      SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${ProdDistributionId}'
 
 # ---------------------------------------------------------------------------
 #  Outputs
@@ -132,9 +186,11 @@ Outputs:
     Value: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${AppName}'
 
   LambdaFunctionName:
+    Condition: CreateFunction
     Description: Name of the deployed Lambda function.
     Value: !Ref LambdaFunction
 
   FunctionUrl:
+    Condition: CreateFunction
     Description: Public HTTPS endpoint for the FloraSense API.
     Value: !GetAtt LambdaFunctionUrl.FunctionUrl
