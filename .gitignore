@@ -8,3 +8,16 @@ __pycache__/
 expressions.txt
 .venv/
 venv/
+
+# Training dataset (347 MB) — never commit; download from the Udacity link in README
+data/flowers/
+
+# Trained model checkpoints (hundreds of MB) — see *.pth above
+checkpoints/
+
+# Notebook HTML export
+*.ipynb_checkpoints/
+training/Image Classifier Project.html
+
+# pytest
+.pytest_cache/

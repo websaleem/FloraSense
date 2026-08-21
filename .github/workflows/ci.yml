@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+    paths-ignore:
+      - 'website/**'
+      - 'README.md'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Unit & API tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      # The CPU wheels are a fraction of the size of the default CUDA ones and
+      # the tests never touch a GPU, so this keeps the job to a couple of
+      # minutes instead of pulling well over a gigabyte of unused CUDA libs.
+      - name: Install dependencies
+        run: |
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: pytest tests/ -v
+
+  build-image:
+    name: Docker build (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [efficientnet_b0, densenet121, vgg16]
+    steps:
+      - uses: actions/checkout@v4
+
+      # Checkpoints are gitignored (they run to hundreds of MB), but the build
+      # only copies the file -- it never reads it. A placeholder is therefore
+      # enough to exercise every COPY path, the arch/checkpoint guard, and the
+      # weight prefetch. Building all three architectures is deliberate: a
+      # blanket `COPY .` plus per-arch .dockerignore rules once made every arch
+      # except efficientnet_b0 fail here, and nothing caught it until deploy.
+      - name: Create placeholder checkpoint
+        run: |
+          mkdir -p checkpoints
+          touch checkpoints/checkpoint_${{ matrix.arch }}.pth
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          platforms: linux/amd64
+          provenance: false
+          sbom: false
+          file: backend/lambda/Dockerfile
+          build-args: |
+            ARCH=${{ matrix.arch }}
+            CHECKPOINT=checkpoints/checkpoint_${{ matrix.arch }}.pth
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
+
+  guard-mismatch:
+    name: Build fails on arch/checkpoint mismatch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      # Asserts the negative case: a checkpoint that does not belong to ARCH
+      # must stop the build rather than produce an image that only fails on a
+      # cold start with a load_state_dict size mismatch.
+      - name: Expect failure when CHECKPOINT does not match ARCH
+        run: |
+          mkdir -p checkpoints
+          touch checkpoints/checkpoint_efficientnet_b0.pth
+          if docker buildx build --platform linux/amd64 \
+               --file backend/lambda/Dockerfile \
+               --build-arg ARCH=vgg16 \
+               --build-arg CHECKPOINT=checkpoints/checkpoint_efficientnet_b0.pth \
+               --load . >build.log 2>&1; then
+            echo "::error::Build succeeded with a mismatched checkpoint — the guard is not working."
+            exit 1
+          fi
+          grep -q "is not a checkpoint for ARCH" build.log \
+            || { echo "::error::Build failed, but not on the arch guard:"; cat build.log; exit 1; }
+          echo "Guard correctly rejected the mismatched checkpoint."

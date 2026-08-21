@@ -7,6 +7,21 @@ assets/
 .dockerignore
 README.md
 LICENSE
-deploy.sh
-cloudformation.yaml
-flowers/
+scripts/
+infra/
+data/
+
+# Checkpoints are deliberately NOT excluded here. Only the one named by the
+# CHECKPOINT build arg reaches the image — the Dockerfile copies application
+# files individually instead of `COPY . `, so the others cost context transfer
+# but add nothing to any layer. Excluding them by name, as this file used to,
+# meant `ARCH=vgg16 ./scripts/deploy-backend.sh` failed on COPY with the checkpoint
+# it had just verified was present.
+
+# Training / evaluation tooling and the dataset — never executed inside Lambda.
+training/
+tests/
+requirements-dev.txt
+pyproject.toml
+*.pages
+expressions.txt

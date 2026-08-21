@@ -3,6 +3,8 @@
 # Training module using model vgg16 or densenet121 or efficientnet_b0
 
 import argparse
+
+import _paths  # noqa: F401  — puts backend/lambda on sys.path
 import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
@@ -19,9 +21,12 @@ def get_input_args():
     """      
     parser = argparse.ArgumentParser(description='Tranining an Image Classifier.')
     
-    parser.add_argument('data_dir', type=str, default='flowers', help='Directory of the dataset (i.e. flowers)')
+    parser.add_argument('data_dir', type=str, nargs='?', default=_paths.DATA_DIR,
+                        help='Directory of the dataset (default: data/flowers)')
     parser.add_argument('--arch', type=str, default='vgg16', help='Choose the model acrchitecture from ["vgg16", "densenet121", "efficientnet_b0"]')
     parser.add_argument('--learning_rate', type=float, default=0.001, help='Learning rate')
+    parser.add_argument('--dropout', type=float, default=0.2,
+                        help='Dropout probability in the classifier head')
     parser.add_argument('--hidden_layers', type=int, default=4096, help='Number of hidden layers')
     parser.add_argument('--epochs', type=int, default=5, help='epochs to run')
     parser.add_argument('--gpu', action='store_true', help='Use gpu if available')
@@ -34,7 +39,8 @@ def save_checkpoint(model, class_to_idx, suffix="latest"):
         Save the model to the checkpoint file.
         suffix: 'best' for best validation loss, 'latest' for end-of-training.
     """
-    checkpoint_file = f'./checkpoint_{model.arch}_{suffix}.pth'
+    checkpoint_file = os.path.join(_paths.CHECKPOINT_DIR,
+                                   f'checkpoint_{model.arch}_{suffix}.pth')
     
     model.class_to_idx = class_to_idx
 
@@ -123,7 +129,7 @@ def train(args, device):
     # creating a classifier and assign back to model
     classifier = nn.Sequential(nn.Linear(input_features, args.hidden_layers),
                                nn.ReLU(),
-                               nn.Dropout(0.2),
+                               nn.Dropout(args.dropout),
                                nn.Linear(args.hidden_layers, output_features),
                                nn.LogSoftmax(dim=1))
 

@@ -1,0 +1,5 @@
+# Test-only dependencies. Kept out of requirements.txt so they never reach the
+# Lambda image, which is size-sensitive on cold start.
+-r backend/lambda/requirements.txt
+pytest
+httpx

@@ -4,6 +4,9 @@
 
 import argparse
 import json
+import os
+
+import _paths  # noqa: F401  — puts backend/lambda on sys.path
 import torch
 
 from model_utils import (
@@ -23,7 +26,8 @@ def get_input_args():
     parser.add_argument('--arch', type=str, default='vgg16',
                         help=f'Choose the model architecture from {SUPPORTED_ARCHITECTURES}')
     parser.add_argument('--top_k', type=int, default=5, help='Returns top K predictions')
-    parser.add_argument('--category_names', type=str, default='cat_to_name.json',
+    parser.add_argument('--category_names', type=str,
+                        default=os.path.join(_paths.BACKEND_DIR, 'cat_to_name.json'),
                         help='Path of JSON file having class name mapping.')
     parser.add_argument('--gpu', action='store_true', help='Use gpu if available')
 
@@ -42,7 +46,7 @@ def main():
     device = torch.device("cuda" if args.gpu and torch.cuda.is_available() else "cpu")
 
     # load the checkpoint using shared utility
-    model = load_checkpoint(args.arch, device)
+    model = load_checkpoint(args.arch, device, _paths.CHECKPOINT_DIR)
     if model is None:
         print(f"Error: No checkpoint found for '{args.arch}'. "
               f"Train a model first: python train.py flowers --arch {args.arch}")
