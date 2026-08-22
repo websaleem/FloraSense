@@ -343,6 +343,75 @@
             .card { padding: 20px; }
             .dropzone { padding: 32px 16px; }
         }
+        /* ------------------------------------------------------------------ */
+        /*  Capture controls                                                  */
+        /* ------------------------------------------------------------------ */
+        .capture-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .btn-capture {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            /* 56px clears the 44px minimum touch target with room to spare —
+               this is the control a user taps one-handed, outdoors, on a phone. */
+            min-height: 56px;
+            padding: 14px 18px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: rgba(255,255,255,.04);
+            color: var(--text);
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            transition: background .2s, border-color .2s, transform .1s;
+        }
+        .btn-capture:hover { border-color: var(--accent); background: rgba(108,92,231,.10); }
+        .btn-capture:active { transform: scale(.98); }
+        .btn-capture.primary {
+            background: linear-gradient(135deg, var(--accent), var(--accent-light));
+            border-color: transparent;
+            color: #fff;
+        }
+        .cap-icon { font-size: 20px; line-height: 1; }
+
+        .preview-meta {
+            margin-top: 10px;
+            font-size: 13px;
+            color: var(--text-muted);
+            text-align: center;
+        }
+        .btn-retake {
+            margin-top: 12px;
+            min-height: 44px;
+            padding: 10px 22px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 14px;
+            cursor: pointer;
+            transition: color .2s, border-color .2s;
+        }
+        .btn-retake:hover { color: var(--text); border-color: var(--accent); }
+
+        /* Touch: drag & drop is meaningless, so the dropzone goes away and the
+           capture buttons stack full-width for thumb reach. */
+        @media (hover: none) and (pointer: coarse) {
+            .dropzone { display: none; }
+            .capture-row { flex-direction: column; }
+        }
+        /* Pointer devices: `capture` is ignored by desktop browsers, so the
+           camera button would just be a second "browse" — hide it. */
+        @media (hover: hover) and (pointer: fine) {
+            .btn-capture.primary { display: none; }
+        }
     </style>
 </head>
 <body>
@@ -357,15 +426,31 @@
 
     <!-- Upload card -->
     <div class="card" id="upload-card">
+        <!-- Two inputs, not one. `capture` opens the rear camera directly, but on
+             several mobile browsers it also suppresses the photo-library option,
+             so the "choose" path needs an input of its own without the attribute. -->
+        <div class="capture-row">
+            <label class="btn-capture primary" for="camera-input">
+                <span class="cap-icon">📷</span> Take Photo
+            </label>
+            <label class="btn-capture" for="file-input">
+                <span class="cap-icon">🖼️</span> Choose Photo
+            </label>
+        </div>
+        <input type="file" id="camera-input" accept="image/*" capture="environment" hidden>
+        <input type="file" id="file-input" accept="image/*" hidden>
+
+        <!-- Hidden on touch devices via CSS: dragging a file has no meaning there. -->
         <div class="dropzone" id="dropzone">
-            <input type="file" id="file-input" accept="image/*">
-            <div class="dz-icon">📷</div>
+            <div class="dz-icon">🌸</div>
             <div class="dz-label">
-                Drag &amp; drop an image here, or <strong>browse</strong>
+                or drag &amp; drop an image here
             </div>
         </div>
         <div class="preview-wrapper" id="preview-wrapper">
-            <img id="preview-img" alt="Preview of uploaded flower image">
+            <img id="preview-img" alt="Preview of the selected flower image">
+            <div class="preview-meta" id="preview-meta"></div>
+            <button class="btn-retake" id="retake-btn" type="button">↺ Retake</button>
         </div>
         <div style="text-align:center;">
             <button class="btn" id="classify-btn" disabled>
@@ -394,8 +479,11 @@
 (function () {
     'use strict';
 
-    const dropzone   = document.getElementById('dropzone');
-    const fileInput  = document.getElementById('file-input');
+    const dropzone    = document.getElementById('dropzone');
+    const fileInput   = document.getElementById('file-input');
+    const cameraInput = document.getElementById('camera-input');
+    const previewMeta = document.getElementById('preview-meta');
+    const retakeBtn   = document.getElementById('retake-btn');
     const previewWr  = document.getElementById('preview-wrapper');
     const previewImg = document.getElementById('preview-img');
     const btn        = document.getElementById('classify-btn');
@@ -406,7 +494,61 @@
     const resList    = document.getElementById('results-list');
     const topName    = document.getElementById('top-flower-name');
 
-    let selectedFile = null;
+    /* Lambda Function URLs cap a request at 6 MB, and binary bodies are
+       base64-encoded in transit (~33% inflation), leaving roughly 4.4 MB of
+       real payload. A current phone camera easily produces more than that, so
+       every image is re-encoded here before it is sent.
+
+       Downscaling is free accuracy-wise: process_image() resizes to 224x224
+       server-side, so 1024px on the long edge is already far more detail than
+       the model consumes. Re-encoding also normalises iPhone HEIC to JPEG,
+       which the backend's Pillow cannot decode without extra libraries. */
+    const MAX_EDGE     = 1024;
+    const JPEG_QUALITY = 0.85;
+    const HARD_LIMIT   = 4.4 * 1024 * 1024;
+
+    let selectedBlob = null;
+
+    function fmtBytes(n) {
+        if (n < 1024) return n + ' B';
+        if (n < 1048576) return Math.round(n / 1024) + ' KB';
+        return (n / 1048576).toFixed(1) + ' MB';
+    }
+
+    async function decodeImage(file) {
+        /* imageOrientation:'from-image' applies the EXIF rotation flag. Phones
+           record orientation as metadata rather than rotating the pixels, so
+           without this a portrait photo reaches the model on its side. */
+        if (self.createImageBitmap) {
+            try {
+                return await createImageBitmap(file, { imageOrientation: 'from-image' });
+            } catch (e) { /* HEIC on a non-Safari browser lands here */ }
+        }
+        return await new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload  = () => resolve(img);
+            img.onerror = () => reject(new Error('That file could not be read as an image.'));
+            img.src = URL.createObjectURL(file);
+        });
+    }
+
+    async function prepareImage(file) {
+        const src = await decodeImage(file);
+        const w0 = src.width, h0 = src.height;
+        const scale = Math.min(1, MAX_EDGE / Math.max(w0, h0));
+        const w = Math.round(w0 * scale), h = Math.round(h0 * scale);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(src, 0, 0, w, h);
+        if (src.close) src.close();
+
+        const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', JPEG_QUALITY));
+        if (!blob) throw new Error('That image could not be processed.');
+        return { blob, w, h, w0, h0 };
+    }
 
     /* ---------- Drag & drop ---------- */
     ['dragenter', 'dragover'].forEach(evt =>
@@ -420,40 +562,91 @@
         if (files.length) handleFile(files[0]);
     });
 
-    fileInput.addEventListener('change', () => {
-        if (fileInput.files.length) handleFile(fileInput.files[0]);
+    [fileInput, cameraInput].forEach(input => {
+        input.addEventListener('change', () => {
+            if (input.files.length) handleFile(input.files[0]);
+            /* Reset so re-picking the same file still fires a change event —
+               otherwise "Retake" then choosing the same shot does nothing. */
+            input.value = '';
+        });
     });
 
-    function handleFile(file) {
-        if (!file.type.startsWith('image/')) {
-            showError('Please upload an image file (JPEG, PNG, etc.).');
+    dropzone.addEventListener('click', () => fileInput.click());
+
+    retakeBtn.addEventListener('click', () => {
+        selectedBlob = null;
+        previewWr.style.display = 'none';
+        previewImg.removeAttribute('src');
+        previewMeta.textContent = '';
+        resCard.style.display = 'none';
+        btn.disabled = true;
+        hideError();
+    });
+
+    async function handleFile(file) {
+        /* iOS can report an empty type for HEIC, so fall back to the extension
+           rather than rejecting a legitimate photo on a missing MIME type. */
+        const looksLikeImage = (file.type && file.type.startsWith('image/'))
+                             || /\.(jpe?g|png|gif|webp|hei[cf])$/i.test(file.name || '');
+        if (!looksLikeImage) {
+            showError('Please choose an image file (JPEG, PNG, HEIC).');
             return;
         }
-        selectedFile = file;
+
         hideError();
         resCard.style.display = 'none';
+        btn.disabled = true;
+        btnText.textContent = 'Preparing…';
 
-        const reader = new FileReader();
-        reader.onload = e => {
-            previewImg.src = e.target.result;
+        try {
+            const { blob, w, h, w0, h0 } = await prepareImage(file);
+            if (blob.size > HARD_LIMIT) {
+                showError('That photo is still too large after resizing. Please try another.');
+                return;
+            }
+            selectedBlob = blob;
+
+            /* Preview the processed blob, not the original: what you see is
+               exactly what gets sent, including the EXIF rotation applied. */
+            previewImg.src = URL.createObjectURL(blob);
             previewWr.style.display = 'flex';
-        };
-        reader.readAsDataURL(file);
-        btn.disabled = false;
+            previewMeta.textContent = (w < w0 || h < h0)
+                ? `${w0}×${h0} → ${w}×${h}  ·  ${fmtBytes(file.size)} → ${fmtBytes(blob.size)}`
+                : `${w}×${h}  ·  ${fmtBytes(blob.size)}`;
+            btn.disabled = false;
+        } catch (err) {
+            showError(err.message || 'That image could not be read.');
+        } finally {
+            btnText.textContent = 'Identify Flower';
+        }
     }
 
     /* ---------- Classify ---------- */
     btn.addEventListener('click', async () => {
-        if (!selectedFile) return;
+        if (!selectedBlob) return;
         setLoading(true);
         hideError();
         resCard.style.display = 'none';
 
-        const formData = new FormData();
-        formData.append('file', selectedFile);
-
         try {
-            const resp = await fetch('/predict?top_k=5', { method: 'POST', body: formData });
+            /* CloudFront reaches the API through an Origin Access Control, which
+               SigV4-signs each origin request. CloudFront does not read the body,
+               so it signs whatever payload hash the viewer supplies -- and Lambda
+               function URLs reject unsigned payloads outright. A plain
+               FormData POST therefore always came back 403 "signature does not
+               match". So the multipart body is assembled by hand (FormData
+               picks its own boundary and will not reveal the exact bytes) and
+               its SHA-256 goes in x-amz-content-sha256. */
+            const { body, boundary, hash } = await buildSignedMultipart(selectedBlob, 'capture.jpg');
+
+            const resp = await fetch('/predict?top_k=5', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': `multipart/form-data; boundary=${boundary}`,
+                    'x-amz-content-sha256': hash,
+                },
+                body,
+            });
             if (!resp.ok) {
                 const err = await resp.json().catch(() => ({}));
                 throw new Error(err.detail || `Server error (${resp.status})`);
@@ -505,6 +698,35 @@
     }
 
     /* ---------- Helpers ---------- */
+
+    /* Build a multipart/form-data body by hand and return it with its
+       boundary and SHA-256 hex digest. See the note in the click handler:
+       CloudFront's OAC signing requires the payload hash up front. */
+    async function buildSignedMultipart(blob, filename) {
+        const boundary = '----FloraSense' + Math.random().toString(16).slice(2) + Date.now().toString(16);
+        const encoder = new TextEncoder();
+
+        const head = encoder.encode(
+            `--${boundary}\r\n` +
+            `Content-Disposition: form-data; name="file"; filename="${filename}"\r\n` +
+            `Content-Type: ${blob.type || 'image/jpeg'}\r\n\r\n`
+        );
+        const tail = encoder.encode(`\r\n--${boundary}--\r\n`);
+        const file = new Uint8Array(await blob.arrayBuffer());
+
+        const body = new Uint8Array(head.length + file.length + tail.length);
+        body.set(head, 0);
+        body.set(file, head.length);
+        body.set(tail, head.length + file.length);
+
+        const digest = await crypto.subtle.digest('SHA-256', body);
+        const hash = Array.from(new Uint8Array(digest))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+
+        return { body, boundary, hash };
+    }
+
     function setLoading(on) {
         btn.disabled = on;
         spinner.style.display = on ? 'block' : 'none';
