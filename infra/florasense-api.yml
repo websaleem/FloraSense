@@ -177,6 +177,31 @@ Resources:
       FunctionUrlAuthType: AWS_IAM
       SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${ProdDistributionId}'
 
+  # ---- Second grant: lambda:InvokeFunction ----
+  # OAC needs BOTH actions. lambda:InvokeFunctionUrl alone gets the request past
+  # the URL endpoint but the invocation itself is still denied, and the caller
+  # sees a bare 403 "Forbidden ... Function URL authorization" with nothing in
+  # the function's logs -- indistinguishable from a signing failure. The AWS
+  # documentation for restricting a Lambda function URL origin issues two
+  # add-permission calls for exactly this reason.
+  LambdaInvokePermissionDev:
+    Type: AWS::Lambda::Permission
+    Condition: CreateDevPermission
+    Properties:
+      FunctionName: !Ref LambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: cloudfront.amazonaws.com
+      SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${DevDistributionId}'
+
+  LambdaInvokePermissionProd:
+    Type: AWS::Lambda::Permission
+    Condition: CreateProdPermission
+    Properties:
+      FunctionName: !Ref LambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: cloudfront.amazonaws.com
+      SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${ProdDistributionId}'
+
 # ---------------------------------------------------------------------------
 #  Outputs
 # ---------------------------------------------------------------------------

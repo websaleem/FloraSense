@@ -75,26 +75,86 @@ else
             echo "   or pass --function-url explicitly."; exit 1; }
     fi
     # CloudFront wants a bare host: no scheme, no trailing slash.
-    ORIGIN_HOST=$(echo "$FUNCTION_URL" | sed -e 's|^https\?://||' -e 's|/.*$||')
+    #
+    # Done with parameter expansion rather than sed: BSD sed (macOS) does not
+    # support \? in a basic regex, so the scheme survived, the second
+    # expression then cut everything from the first slash, and the origin was
+    # set to the literal "https:" -- which UpdateDistribution rejects with
+    # "origin name cannot contain a colon". GNU sed on CI hid the difference.
+    ORIGIN_HOST="${FUNCTION_URL#*://}"
+    ORIGIN_HOST="${ORIGIN_HOST%%/*}"
     echo "   Origin host: ${ORIGIN_HOST}"
+    echo ""
+
+    # ---- 2b. Ensure an Origin Access Control for the Lambda origin ---------
+    # The Function URL is AuthType: AWS_IAM, so every request must be SigV4
+    # signed. CloudFront does that only when the origin has an OAC attached
+    # with origin type "lambda"; without one, requests arrive unsigned and the
+    # URL answers 403 -- the page loads and every prediction fails.
+    echo "🔏 Step 2b: Ensuring Origin Access Control..."
+    OAC_NAME="florasense-lambda-oac"
+    OAC_ID=$(aws cloudfront list-origin-access-controls \
+        --query "OriginAccessControlList.Items[?Name=='${OAC_NAME}'].Id | [0]" \
+        --output text 2>/dev/null || true)
+
+    if [[ -z "$OAC_ID" || "$OAC_ID" == "None" ]]; then
+        OAC_ID=$(aws cloudfront create-origin-access-control \
+            --origin-access-control-config "Name=${OAC_NAME},Description=SigV4 signing for the FloraSense Lambda Function URL,SigningProtocol=sigv4,SigningBehavior=always,OriginAccessControlOriginType=lambda" \
+            --query "OriginAccessControl.Id" --output text)
+        echo "   ✓ Created OAC ${OAC_ID}."
+    else
+        echo "   ✓ Reusing OAC ${OAC_ID}."
+    fi
+    echo ""
+
+    # ---- 2c. Origin request policy compatible with OAC ---------------------
+    # OAC puts its SigV4 signature in the Authorization header. The managed
+    # AllViewerExceptHostHeader policy excludes only Host, so it forwards the
+    # viewer's Authorization -- which overwrites that signature, and since a
+    # browser sends none, the request reaches Lambda unsigned and gets a 403
+    # AccessDeniedException. There is no managed policy that drops both, so
+    # this one excludes Host and Authorization and forwards everything else.
+    echo "📋 Step 2c: Ensuring origin request policy..."
+    ORP_NAME="florasense-lambda-origin-request"
+    ORP_ID=$(aws cloudfront list-origin-request-policies \
+        --query "OriginRequestPolicyList.Items[?OriginRequestPolicy.OriginRequestPolicyConfig.Name=='${ORP_NAME}'].OriginRequestPolicy.Id | [0]" \
+        --output text 2>/dev/null || true)
+
+    if [[ -z "$ORP_ID" || "$ORP_ID" == "None" ]]; then
+        ORP_ID=$(aws cloudfront create-origin-request-policy \
+            --origin-request-policy-config "$(cat <<JSON
+{
+  "Name": "${ORP_NAME}",
+  "Comment": "Forwards everything except Host and Authorization, so CloudFront OAC signing survives.",
+  "HeadersConfig": {
+    "HeaderBehavior": "allExcept",
+    "Headers": { "Quantity": 2, "Items": ["host", "authorization"] }
+  },
+  "CookiesConfig": { "CookieBehavior": "none" },
+  "QueryStringsConfig": { "QueryStringBehavior": "all" }
+}
+JSON
+)" --query "OriginRequestPolicy.Id" --output text)
+        echo "   ✓ Created origin request policy ${ORP_ID}."
+    else
+        echo "   ✓ Reusing origin request policy ${ORP_ID}."
+    fi
     echo ""
 
     # ---- 3. Patch the distribution -----------------------------------------
     echo "⚙️  Step 3: Configuring distribution..."
     aws cloudfront get-distribution-config --id "$DIST_ID" --output json > /tmp/fs-cf.json
 
-    ORIGIN_HOST="$ORIGIN_HOST" LAMBDA_ORIGIN_ID="$LAMBDA_ORIGIN_ID" python3 - <<'PY'
+    ORIGIN_HOST="$ORIGIN_HOST" LAMBDA_ORIGIN_ID="$LAMBDA_ORIGIN_ID" OAC_ID="$OAC_ID" ORP_ID="$ORP_ID" python3 - <<'PY'
 import json, os
 
 ORIGIN_HOST = os.environ["ORIGIN_HOST"]
 ORIGIN_ID   = os.environ["LAMBDA_ORIGIN_ID"]
+OAC_ID      = os.environ["OAC_ID"]
+ORP_ID      = os.environ["ORP_ID"]
 
 # Managed policy ids, confirmed against the CloudFront API.
 CACHE_DISABLED = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"   # Managed-CachingDisabled
-# AllViewerExceptHostHeader forwards everything the viewer sent EXCEPT Host.
-# A Lambda Function URL rejects a foreign Host header, so forwarding it breaks
-# every request through the distribution.
-ORP_NO_HOST    = "b689b0a8-53d0-40ab-baf2-68738e2966ac"
 
 doc  = json.load(open("/tmp/fs-cf.json"))
 etag = doc["ETag"]
@@ -130,10 +190,13 @@ origins.append({
     "ConnectionAttempts": 3,
     "ConnectionTimeout": 10,
     "OriginShield": {"Enabled": False},
+    # Without this the origin is called anonymously and an AWS_IAM Function URL
+    # returns 403 on every request.
+    "OriginAccessControlId": OAC_ID,
 })
 cfg["Origins"]["Items"] = origins
 cfg["Origins"]["Quantity"] = len(origins)
-changes.append(f"origin {ORIGIN_ID} -> {ORIGIN_HOST}")
+changes.append(f"origin {ORIGIN_ID} -> {ORIGIN_HOST} (OAC {OAC_ID})")
 
 # 3c. Route the API paths to that origin. POST is the whole point: the existing
 # distribution allows only GET/HEAD, so /predict cannot work without this.
@@ -149,7 +212,7 @@ def behavior(pattern):
         },
         "Compress": True,
         "CachePolicyId": CACHE_DISABLED,
-        "OriginRequestPolicyId": ORP_NO_HOST,
+        "OriginRequestPolicyId": ORP_ID,
         "SmoothStreaming": False,
         "FieldLevelEncryptionId": "",
         "LambdaFunctionAssociations": {"Quantity": 0},

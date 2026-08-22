@@ -628,11 +628,25 @@
         hideError();
         resCard.style.display = 'none';
 
-        const formData = new FormData();
-        formData.append('file', selectedBlob, 'capture.jpg');
-
         try {
-            const resp = await fetch('/predict?top_k=5', { method: 'POST', body: formData });
+            /* CloudFront reaches the API through an Origin Access Control, which
+               SigV4-signs each origin request. CloudFront does not read the body,
+               so it signs whatever payload hash the viewer supplies -- and Lambda
+               function URLs reject unsigned payloads outright. A plain
+               FormData POST therefore always came back 403 "signature does not
+               match". So the multipart body is assembled by hand (FormData
+               picks its own boundary and will not reveal the exact bytes) and
+               its SHA-256 goes in x-amz-content-sha256. */
+            const { body, boundary, hash } = await buildSignedMultipart(selectedBlob, 'capture.jpg');
+
+            const resp = await fetch('/predict?top_k=5', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': `multipart/form-data; boundary=${boundary}`,
+                    'x-amz-content-sha256': hash,
+                },
+                body,
+            });
             if (!resp.ok) {
                 const err = await resp.json().catch(() => ({}));
                 throw new Error(err.detail || `Server error (${resp.status})`);
@@ -684,6 +698,35 @@
     }
 
     /* ---------- Helpers ---------- */
+
+    /* Build a multipart/form-data body by hand and return it with its
+       boundary and SHA-256 hex digest. See the note in the click handler:
+       CloudFront's OAC signing requires the payload hash up front. */
+    async function buildSignedMultipart(blob, filename) {
+        const boundary = '----FloraSense' + Math.random().toString(16).slice(2) + Date.now().toString(16);
+        const encoder = new TextEncoder();
+
+        const head = encoder.encode(
+            `--${boundary}\r\n` +
+            `Content-Disposition: form-data; name="file"; filename="${filename}"\r\n` +
+            `Content-Type: ${blob.type || 'image/jpeg'}\r\n\r\n`
+        );
+        const tail = encoder.encode(`\r\n--${boundary}--\r\n`);
+        const file = new Uint8Array(await blob.arrayBuffer());
+
+        const body = new Uint8Array(head.length + file.length + tail.length);
+        body.set(head, 0);
+        body.set(file, head.length);
+        body.set(tail, head.length + file.length);
+
+        const digest = await crypto.subtle.digest('SHA-256', body);
+        const hash = Array.from(new Uint8Array(digest))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+
+        return { body, boundary, hash };
+    }
+
     function setLoading(on) {
         btn.disabled = on;
         spinner.style.display = on ? 'block' : 'none';

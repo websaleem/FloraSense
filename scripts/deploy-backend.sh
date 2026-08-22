@@ -24,6 +24,24 @@ APP_NAME="florasense"
 IMAGE_TAG="latest"
 ARCH="${ARCH:-efficientnet_b0}"
 
+# CloudFront distribution ids allowed to invoke the Function URL. They are
+# scrub targets in expressions.txt and must never be committed, so they arrive
+# from the environment:
+#
+#   DEV_DISTRIBUTION_ID=EXXXX ./scripts/deploy-backend.sh
+#
+# Left unset, the corresponding stack parameter is omitted and CloudFormation
+# keeps whatever the stack already has. That matters: `aws cloudformation
+# deploy` reuses previous values only for parameters it is not given, so
+# passing an empty string here would actively clear an existing id and delete
+# the permission CloudFront depends on.
+DEV_DISTRIBUTION_ID="${DEV_DISTRIBUTION_ID:-}"
+PROD_DISTRIBUTION_ID="${PROD_DISTRIBUTION_ID:-}"
+
+DISTRIBUTION_PARAMS=()
+[[ -n "${DEV_DISTRIBUTION_ID}"  ]] && DISTRIBUTION_PARAMS+=("DevDistributionId=${DEV_DISTRIBUTION_ID}")
+[[ -n "${PROD_DISTRIBUTION_ID}" ]] && DISTRIBUTION_PARAMS+=("ProdDistributionId=${PROD_DISTRIBUTION_ID}")
+
 LAMBDA_FUNCTION_NAME="${APP_NAME}-api"
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 ECR_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${APP_NAME}"
@@ -32,6 +50,11 @@ echo "🌸 Deploying FloraSense to AWS..."
 echo "   Region:  ${AWS_REGION}"
 echo "   Account: ${AWS_ACCOUNT_ID}"
 echo "   Arch:    ${ARCH}"
+if [[ ${#DISTRIBUTION_PARAMS[@]} -gt 0 ]]; then
+    echo "   CDN:     ${DISTRIBUTION_PARAMS[*]}"
+else
+    echo "   CDN:     (unchanged — set DEV_DISTRIBUTION_ID to grant CloudFront invoke access)"
+fi
 echo ""
 
 # ---- 0. Preflight ----
@@ -81,6 +104,7 @@ aws cloudformation deploy \
     --stack-name "${STACK_NAME}" \
     --parameter-overrides AppName="${APP_NAME}" ImageTag="${IMAGE_TAG}" \
                           Arch="${ARCH}" DeployFunction="${FIRST_PASS}" \
+                          ${DISTRIBUTION_PARAMS[@]+"${DISTRIBUTION_PARAMS[@]}"} \
     --capabilities CAPABILITY_NAMED_IAM \
     --region "${AWS_REGION}" \
     --no-fail-on-empty-changeset
@@ -130,6 +154,7 @@ aws cloudformation deploy \
     --stack-name "${STACK_NAME}" \
     --parameter-overrides AppName="${APP_NAME}" ImageTag="${IMAGE_TAG}" \
                           Arch="${ARCH}" DeployFunction="true" \
+                          ${DISTRIBUTION_PARAMS[@]+"${DISTRIBUTION_PARAMS[@]}"} \
     --capabilities CAPABILITY_NAMED_IAM \
     --region "${AWS_REGION}" \
     --no-fail-on-empty-changeset
