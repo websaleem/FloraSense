@@ -49,15 +49,22 @@ echo "   Bucket:       ${BUCKET}"
 echo "   Distribution: ${DIST_ID}"
 echo ""
 
-# ---- 1. Upload the page ----------------------------------------------------
-# index.html is served with no-cache so a redeploy is visible immediately;
-# the page is small and the expensive part (the model call) is never cached.
+# ---- 1. Upload the site ----------------------------------------------------
+# Syncs the whole directory, not just index.html: the site also has privacy.html
+# and terms.html, and copying one file by name silently left those stale (or, on
+# a first deploy, absent, so the footer links 404).
+#
+# Served no-cache so a redeploy is visible immediately. The pages are small and
+# the expensive part (the model call) is never cached anyway. --delete keeps the
+# bucket matching the repo, so a removed page actually disappears.
 echo "📤 Step 1: Uploading website/ to s3://${BUCKET}/ ..."
-aws s3 cp website/index.html "s3://${BUCKET}/index.html" \
+aws s3 sync website/ "s3://${BUCKET}/" \
+    --delete \
+    --exclude "*" --include "*.html" \
     --content-type "text/html; charset=utf-8" \
     --cache-control "no-cache, must-revalidate" \
     --only-show-errors
-echo "   ✓ Uploaded."
+echo "   ✓ Uploaded: $(ls website/*.html | xargs -n1 basename | tr '\n' ' ')"
 echo ""
 
 if [[ "$CONTENT_ONLY" == "true" ]]; then

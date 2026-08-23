@@ -3,479 +3,393 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="FloraSense — Upload a flower image and identify its species using deep learning powered by PyTorch.">
-    <title>FloraSense — AI-Powered Flower Identification</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌸</text></svg>">
+    <title>FloraSense | AI-Powered Flower Species Identification</title>
+    <meta name="description" content="Upload a flower photo and FloraSense identifies its species from 102 categories using a deep learning model. Images are never stored.">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        /* ------------------------------------------------------------------ */
-        /*  Design tokens                                                     */
-        /* ------------------------------------------------------------------ */
         :root {
-            --bg:           #0c0f1a;
-            --surface:      #151929;
-            --surface-2:    #1c2137;
-            --border:       rgba(255,255,255,.06);
-            --text:         #e4e6f0;
-            --text-muted:   #7c819a;
-            --accent:       #6c5ce7;
-            --accent-light: #a29bfe;
-            --accent-glow:  rgba(108,92,231,.25);
-            --success:      #00cec9;
-            --pink:         #fd79a8;
-            --orange:       #fdcb6e;
-            --radius:       16px;
-            --font:         'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --primary: #9333ea;
+            --primary-dark: #6b21a8;
+            --primary-light: #f3e8ff;
+            --bg-light: #faf8fc;
+            --bg-white: #ffffff;
+            --text-main: #1a1024;
+            --text-muted: #6b5b76;
+            --success: #16a34a;
         }
 
-        /* ------------------------------------------------------------------ */
-        /*  Reset & base                                                      */
-        /* ------------------------------------------------------------------ */
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: var(--font);
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: var(--text-main);
+            background-color: var(--bg-light);
+            line-height: 1.6;
+        }
+
+        /* Navigation */
+        nav {
+            background: var(--bg-white);
+            padding: 1rem 5%;
             display: flex;
-            flex-direction: column;
+            justify-content: space-between;
             align-items: center;
-            overflow-x: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
-
-        /* Subtle animated gradient background */
-        body::before {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background:
-                radial-gradient(ellipse 60% 50% at 20% 10%, rgba(108,92,231,.12) 0%, transparent 60%),
-                radial-gradient(ellipse 50% 40% at 80% 80%, rgba(253,121,168,.08) 0%, transparent 60%);
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        /* ------------------------------------------------------------------ */
-        /*  Layout                                                            */
-        /* ------------------------------------------------------------------ */
-        .container {
-            position: relative;
-            z-index: 1;
-            width: 100%;
-            max-width: 680px;
-            padding: 48px 24px 64px;
-        }
-
-        /* ------------------------------------------------------------------ */
-        /*  Header                                                            */
-        /* ------------------------------------------------------------------ */
-        header {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-        header .icon {
-            font-size: 48px;
-            margin-bottom: 8px;
-            filter: drop-shadow(0 0 18px var(--accent-glow));
-        }
-        header h1 {
-            font-size: 28px;
-            font-weight: 700;
-            letter-spacing: -.4px;
-            background: linear-gradient(135deg, var(--accent-light), var(--pink));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        header p {
-            margin-top: 8px;
-            color: var(--text-muted);
-            font-size: 14px;
-            font-weight: 400;
-        }
-
-        /* ------------------------------------------------------------------ */
-        /*  Glass card                                                        */
-        /* ------------------------------------------------------------------ */
-        .card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            backdrop-filter: blur(16px);
-            padding: 32px;
-            margin-bottom: 24px;
-            transition: box-shadow .3s;
-        }
-        .card:hover { box-shadow: 0 0 40px rgba(108,92,231,.08); }
-
-        /* ------------------------------------------------------------------ */
-        /*  Drop zone                                                         */
-        /* ------------------------------------------------------------------ */
-        .dropzone {
-            border: 2px dashed rgba(108,92,231,.35);
-            border-radius: 12px;
-            padding: 48px 24px;
-            text-align: center;
-            cursor: pointer;
-            transition: border-color .25s, background .25s;
-            position: relative;
-        }
-        .dropzone:hover,
-        .dropzone.dragover {
-            border-color: var(--accent);
-            background: rgba(108,92,231,.06);
-        }
-        .dropzone input[type="file"] {
-            position: absolute;
-            inset: 0;
-            opacity: 0;
-            cursor: pointer;
-        }
-        .dropzone .dz-icon {
-            font-size: 40px;
-            margin-bottom: 12px;
-        }
-        .dropzone .dz-label {
-            font-size: 15px;
-            color: var(--text-muted);
-        }
-        .dropzone .dz-label strong {
-            color: var(--accent-light);
-            font-weight: 600;
-        }
-
-        /* Image preview */
-        .preview-wrapper {
-            display: none;
-            margin-top: 20px;
-            justify-content: center;
-        }
-        .preview-wrapper img {
-            max-width: 100%;
-            max-height: 280px;
-            border-radius: 10px;
-            object-fit: cover;
-            box-shadow: 0 8px 32px rgba(0,0,0,.35);
-        }
-
-        /* ------------------------------------------------------------------ */
-        /*  Button                                                            */
-        /* ------------------------------------------------------------------ */
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            margin-top: 24px;
-            padding: 12px 32px;
-            border: none;
-            border-radius: 10px;
-            font-family: var(--font);
-            font-size: 15px;
-            font-weight: 600;
-            color: #fff;
-            background: linear-gradient(135deg, var(--accent), #8b5cf6);
-            cursor: pointer;
-            transition: transform .15s, box-shadow .25s, opacity .2s;
-            box-shadow: 0 4px 20px var(--accent-glow);
-        }
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 28px var(--accent-glow);
-        }
-        .btn:active { transform: scale(.97); }
-        .btn:disabled {
-            opacity: .45;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        /* ------------------------------------------------------------------ */
-        /*  Spinner                                                           */
-        /* ------------------------------------------------------------------ */
-        .spinner {
-            display: none;
-            width: 22px; height: 22px;
-            border: 3px solid rgba(255,255,255,.2);
-            border-top-color: #fff;
-            border-radius: 50%;
-            animation: spin .7s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* ------------------------------------------------------------------ */
-        /*  Results                                                           */
-        /* ------------------------------------------------------------------ */
-        #results-card { display: none; }
-
-        .result-header {
+        .logo {
             display: flex;
             align-items: center;
             gap: 10px;
-            margin-bottom: 20px;
-        }
-        .result-header .badge {
-            background: linear-gradient(135deg, var(--success), #55efc4);
-            color: #0c0f1a;
-            font-size: 12px;
-            font-weight: 700;
-            padding: 4px 10px;
-            border-radius: 6px;
-            text-transform: uppercase;
-            letter-spacing: .5px;
-        }
-        .result-header h2 {
-            font-size: 18px;
-            font-weight: 600;
-        }
-
-        .result-row {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            margin-bottom: 14px;
-            opacity: 0;
-            transform: translateX(-12px);
-            animation: fadeInRow .4s ease forwards;
-        }
-        .result-row:nth-child(2) { animation-delay: .05s; }
-        .result-row:nth-child(3) { animation-delay: .10s; }
-        .result-row:nth-child(4) { animation-delay: .15s; }
-        .result-row:nth-child(5) { animation-delay: .20s; }
-
-        @keyframes fadeInRow {
-            to { opacity: 1; transform: translateX(0); }
-        }
-
-        .result-rank {
-            flex-shrink: 0;
-            width: 28px; height: 28px;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 13px;
-            font-weight: 700;
-            background: var(--surface-2);
-            color: var(--text-muted);
-        }
-        .result-row:first-child .result-rank {
-            background: linear-gradient(135deg, var(--accent), #8b5cf6);
-            color: #fff;
-        }
-
-        .result-info {
-            flex: 1;
-            min-width: 0;
-        }
-        .result-name {
-            font-size: 14px;
-            font-weight: 600;
-            text-transform: capitalize;
-            margin-bottom: 6px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .bar-track {
-            height: 8px;
-            background: var(--surface-2);
-            border-radius: 4px;
-            overflow: hidden;
-        }
-        .bar-fill {
-            height: 100%;
-            border-radius: 4px;
-            background: linear-gradient(90deg, var(--accent), var(--accent-light));
-            width: 0;
-            transition: width .6s cubic-bezier(.4,0,.2,1);
-        }
-        .result-row:first-child .bar-fill {
-            background: linear-gradient(90deg, var(--accent), var(--pink));
-        }
-
-        .result-prob {
-            flex-shrink: 0;
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--accent-light);
-            width: 52px;
-            text-align: right;
-        }
-
-        /* ------------------------------------------------------------------ */
-        /*  Error                                                             */
-        /* ------------------------------------------------------------------ */
-        .error-msg {
-            display: none;
-            margin-top: 16px;
-            padding: 12px 16px;
-            border-radius: 10px;
-            font-size: 13px;
-            color: #fab1a0;
-            background: rgba(214,48,49,.12);
-            border: 1px solid rgba(214,48,49,.25);
-        }
-
-        /* ------------------------------------------------------------------ */
-        /*  Footer                                                            */
-        /* ------------------------------------------------------------------ */
-        footer {
-            text-align: center;
-            padding: 24px;
-            font-size: 12px;
-            color: var(--text-muted);
-        }
-        footer a {
-            color: var(--accent-light);
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--primary-dark);
             text-decoration: none;
         }
-        footer a:hover { text-decoration: underline; }
+        .logo .mark { font-size: 1.6rem; line-height: 1; }
+        .nav-links a { margin-left: 2rem; text-decoration: none; color: var(--text-muted); font-weight: 500; }
+        .nav-links a:hover { color: var(--primary-dark); }
 
-        /* ------------------------------------------------------------------ */
-        /*  Responsive                                                        */
-        /* ------------------------------------------------------------------ */
-        @media (max-width: 480px) {
-            .container { padding: 32px 16px 48px; }
-            header h1 { font-size: 22px; }
-            .card { padding: 20px; }
-            .dropzone { padding: 32px 16px; }
-        }
-        /* ------------------------------------------------------------------ */
-        /*  Capture controls                                                  */
-        /* ------------------------------------------------------------------ */
-        .capture-row {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 16px;
-        }
-        .btn-capture {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            /* 56px clears the 44px minimum touch target with room to spare —
-               this is the control a user taps one-handed, outdoors, on a phone. */
-            min-height: 56px;
-            padding: 14px 18px;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            background: rgba(255,255,255,.04);
-            color: var(--text);
-            font-size: 15px;
-            font-weight: 500;
+        /* Buttons */
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.2s;
             cursor: pointer;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-            transition: background .2s, border-color .2s, transform .1s;
+            border: none;
+            font-size: 1rem;
+            font-family: inherit;
         }
-        .btn-capture:hover { border-color: var(--accent); background: rgba(108,92,231,.10); }
-        .btn-capture:active { transform: scale(.98); }
-        .btn-capture.primary {
-            background: linear-gradient(135deg, var(--accent), var(--accent-light));
-            border-color: transparent;
-            color: #fff;
-        }
-        .cap-icon { font-size: 20px; line-height: 1; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover:not(:disabled) { background: var(--primary-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(147,51,234,0.35); }
+        .btn-primary:disabled { background: #cbb8dd; cursor: not-allowed; }
+        .btn-outline { border: 2px solid var(--primary); color: var(--primary-dark); background: transparent; }
+        .btn-outline:hover { background: var(--primary); color: white; }
 
-        .preview-meta {
-            margin-top: 10px;
-            font-size: 13px;
-            color: var(--text-muted);
+        /* Hero */
+        .hero {
+            padding: 4.5rem 5% 3rem;
             text-align: center;
+            background: linear-gradient(135deg, #ffffff 0%, #f3e8ff 100%);
         }
-        .btn-retake {
-            margin-top: 12px;
-            min-height: 44px;
-            padding: 10px 22px;
-            border-radius: 10px;
-            border: 1px solid var(--border);
-            background: transparent;
-            color: var(--text-muted);
-            font-size: 14px;
-            cursor: pointer;
-            transition: color .2s, border-color .2s;
-        }
-        .btn-retake:hover { color: var(--text); border-color: var(--accent); }
+        .hero h1 { font-size: 3.25rem; line-height: 1.1; margin-bottom: 1.25rem; letter-spacing: -0.02em; }
+        .hero p { font-size: 1.2rem; color: var(--text-muted); max-width: 620px; margin: 0 auto 2rem; }
+        .hero-badges { display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 2.5rem; }
+        .badge { background: var(--primary-light); color: var(--primary-dark); padding: 0.4rem 1rem; border-radius: 999px; font-size: 0.85rem; font-weight: 600; }
 
-        /* Touch: drag & drop is meaningless, so the dropzone goes away and the
-           capture buttons stack full-width for thumb reach. */
-        @media (hover: none) and (pointer: coarse) {
-            .dropzone { display: none; }
-            .capture-row { flex-direction: column; }
+        /* ---- The identifier tool ---- */
+        .tool-wrap { max-width: 560px; margin: 0 auto; text-align: left; }
+        .tool-card {
+            background: var(--bg-white);
+            border: 1px solid #e9d5ff;
+            border-radius: 16px;
+            padding: 1.75rem;
+            box-shadow: 0 10px 30px rgba(107,33,168,0.08);
         }
-        /* Pointer devices: `capture` is ignored by desktop browsers, so the
-           camera button would just be a second "browse" — hide it. */
-        @media (hover: hover) and (pointer: fine) {
-            .btn-capture.primary { display: none; }
+        .choose-row { display: flex; gap: 0.75rem; margin-bottom: 1rem; }
+        .choose-row .btn { flex: 1; text-align: center; }
+        #dropzone {
+            border: 2px dashed #d8b4fe;
+            border-radius: 12px;
+            padding: 2rem 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #fdfaff;
+        }
+        #dropzone:hover, #dropzone.dragover { border-color: var(--primary); background: var(--primary-light); }
+        #dropzone .dz-icon { font-size: 2.25rem; color: var(--primary); display: block; margin-bottom: 0.5rem; }
+        #dropzone p { color: var(--text-muted); font-size: 0.95rem; }
+
+        #preview-wrapper { display: none; align-items: center; gap: 1rem; margin-top: 1rem; }
+        #preview-img { width: 110px; height: 110px; object-fit: cover; border-radius: 10px; border: 1px solid #e9d5ff; }
+        #preview-meta { font-size: 0.85rem; color: var(--text-muted); flex: 1; }
+        #retake-btn { background: transparent; border: 1px solid #d8b4fe; color: var(--primary-dark); border-radius: 8px; padding: 0.5rem 0.9rem; cursor: pointer; font-weight: 600; font-size: 0.85rem; font-family: inherit; }
+        #retake-btn:hover { background: var(--primary-light); }
+
+        #classify-btn { width: 100%; margin-top: 1.25rem; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        #spinner {
+            display: none;
+            width: 18px; height: 18px;
+            border: 2px solid rgba(255,255,255,0.4);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        #error-msg {
+            display: none;
+            margin-top: 1rem;
+            background: #fef2f2;
+            border: 1px solid #fee2e2;
+            color: #b91c1c;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        /* Results */
+        #results-card { display: none; margin-top: 1.25rem; background: var(--bg-white); border: 1px solid #e9d5ff; border-radius: 16px; padding: 1.5rem; box-shadow: 0 10px 30px rgba(107,33,168,0.08); }
+        .results-head { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); font-weight: 700; }
+        #top-flower-name { font-size: 1.75rem; font-weight: 800; color: var(--primary-dark); margin: 0.25rem 0 1.25rem; text-transform: capitalize; }
+        .result-row { display: flex; align-items: center; gap: 0.85rem; padding: 0.5rem 0; }
+        .result-rank { width: 22px; height: 22px; border-radius: 50%; background: var(--primary-light); color: var(--primary-dark); font-size: 0.7rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .result-info { flex: 1; min-width: 0; }
+        .result-name { font-size: 0.9rem; font-weight: 600; text-transform: capitalize; margin-bottom: 4px; }
+        .bar-track { height: 6px; background: #f1e8f8; border-radius: 999px; overflow: hidden; }
+        .bar-fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--primary), #c084fc); border-radius: 999px; transition: width 0.6s ease-out; }
+        .result-prob { font-size: 0.85rem; font-weight: 700; color: var(--text-muted); width: 52px; text-align: right; flex-shrink: 0; }
+
+        /* Features */
+        .features { padding: 5rem 5%; background: var(--bg-white); }
+        .section-title { text-align: center; font-size: 2.25rem; margin-bottom: 0.75rem; }
+        .section-sub { text-align: center; color: var(--text-muted); font-size: 1.1rem; max-width: 620px; margin: 0 auto 3rem; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 2rem; max-width: 1200px; margin: 0 auto; }
+        .card { padding: 2.25rem; border-radius: 16px; background: var(--bg-white); border: 1px solid #e2e8f0; transition: transform 0.2s; }
+        .card:hover { transform: translateY(-4px); box-shadow: 0 10px 24px rgba(0,0,0,0.06); }
+        .card i { font-size: 2.25rem; color: var(--primary); margin-bottom: 1.25rem; }
+        .card h3 { font-size: 1.2rem; margin-bottom: 0.75rem; }
+        .card p { color: var(--text-muted); font-size: 0.95rem; }
+
+        /* How it works (dark) */
+        .tech-section { padding: 5rem 5%; background: #1a1024; color: white; }
+        .tech-container { max-width: 1200px; margin: 0 auto; }
+        .tech-section h2 { font-size: 2.25rem; margin-bottom: 1rem; text-align: center; }
+        .tech-section .section-sub { color: #c084fc; margin-bottom: 3.5rem; }
+        .pipeline { display: flex; align-items: stretch; flex-wrap: wrap; justify-content: center; margin-bottom: 3.5rem; }
+        .pipeline-step { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 1.5rem 1.25rem; text-align: center; flex: 1; min-width: 140px; max-width: 180px; }
+        .pipeline-step i { font-size: 2rem; color: #c084fc; margin-bottom: 0.75rem; display: block; }
+        .pipeline-step h4 { font-size: 0.875rem; font-weight: 700; margin-bottom: 0.4rem; }
+        .pipeline-step p { font-size: 0.75rem; color: #a898b8; line-height: 1.4; }
+        .pipeline-arrow { display: flex; align-items: center; padding: 0 0.5rem; color: #c084fc; font-size: 1.25rem; opacity: 0.6; }
+        .tech-list { list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+        .tech-list li { display: flex; align-items: flex-start; gap: 10px; background: rgba(255,255,255,0.05); border-radius: 10px; padding: 1rem 1.25rem; }
+        .tech-list i { color: var(--success); margin-top: 4px; flex-shrink: 0; }
+        .tech-list strong { display: block; margin-bottom: 2px; }
+        .tech-list span { font-size: 0.875rem; color: #a898b8; }
+
+        /* Models */
+        .models-section { padding: 5rem 5%; background: var(--bg-light); }
+        .models-table { max-width: 760px; margin: 0 auto; background: var(--bg-white); border: 1px solid #e2e8f0; border-radius: 16px; overflow-x: auto; }
+        /* The table has a natural minimum width; on a narrow phone it must scroll
+           inside this box rather than being clipped by overflow:hidden. */
+        .models-table table { width: 100%; min-width: 420px; border-collapse: collapse; }
+        .models-table th { text-align: left; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); padding: 1rem 1.25rem; background: var(--bg-light); border-bottom: 1px solid #e2e8f0; }
+        .models-table td { padding: 1rem 1.25rem; border-bottom: 1px solid #f1f5f9; font-size: 0.95rem; }
+        .models-table tr:last-child td { border-bottom: none; }
+        .models-table .arch { font-weight: 700; }
+        .models-table .live { background: var(--primary-light); color: var(--primary-dark); font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.05em; margin-left: 8px; }
+        .models-note { text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 1.25rem; }
+
+        /* Disclaimer */
+        .disclaimer-section { padding: 4rem 5%; background: #fffbeb; border-top: 1px solid #fef3c7; border-bottom: 1px solid #e2e8f0; }
+        .disclaimer-container { max-width: 900px; margin: 0 auto; text-align: center; }
+        .disclaimer-container h2 { font-size: 1.5rem; color: #b45309; margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .disclaimer-container p { color: #78350f; font-size: 0.95rem; margin-bottom: 1rem; }
+
+        /* Footer */
+        footer { background: var(--bg-white); padding: 3rem 5%; text-align: center; border-top: 1px solid #e2e8f0; }
+        .footer-logo { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 1.5rem; font-size: 1.25rem; font-weight: 800; color: var(--primary-dark); text-decoration: none; }
+        .footer-links a { color: var(--text-muted); margin: 0 1rem; text-decoration: none; font-size: 0.9rem; }
+        .footer-links a:hover { color: var(--primary-dark); }
+        .copyright { color: var(--text-muted); margin-top: 1.5rem; font-size: 0.85rem; }
+
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2.25rem; }
+            .nav-links { display: none; }
+            .pipeline-arrow { display: none; }
+            .pipeline-step { max-width: 100%; }
+            .choose-row { flex-direction: column; }
         }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <!-- Header -->
-    <header>
-        <div class="icon">🌸</div>
-        <h1>FloraSense</h1>
-        <p>Upload a flower photo and let AI identify its species</p>
-    </header>
-
-    <!-- Upload card -->
-    <div class="card" id="upload-card">
-        <!-- Two inputs, not one. `capture` opens the rear camera directly, but on
-             several mobile browsers it also suppresses the photo-library option,
-             so the "choose" path needs an input of its own without the attribute. -->
-        <div class="capture-row">
-            <label class="btn-capture primary" for="camera-input">
-                <span class="cap-icon">📷</span> Take Photo
-            </label>
-            <label class="btn-capture" for="file-input">
-                <span class="cap-icon">🖼️</span> Choose Photo
-            </label>
+    <nav>
+        <a class="logo" href="#home"><span class="mark">🌸</span> FloraSense</a>
+        <div class="nav-links">
+            <a href="#identify">Identify</a>
+            <a href="#features">Features</a>
+            <a href="#how-it-works">How it Works</a>
+            <a href="#models">Models</a>
+            <a href="/privacy.html">Privacy Policy</a>
+            <a href="/terms.html">Terms</a>
         </div>
-        <input type="file" id="camera-input" accept="image/*" capture="environment" hidden>
-        <input type="file" id="file-input" accept="image/*" hidden>
+    </nav>
 
-        <!-- Hidden on touch devices via CSS: dragging a file has no meaning there. -->
-        <div class="dropzone" id="dropzone">
-            <div class="dz-icon">🌸</div>
-            <div class="dz-label">
-                or drag &amp; drop an image here
+    <!-- Hero + the identifier itself -->
+    <section class="hero" id="home">
+        <h1>Identify Any Flower.<br><span style="color: var(--primary);">In Seconds.</span></h1>
+        <p>Upload a photo and FloraSense names the species, with confidence scores for the five closest matches — from a model trained on 102 flower categories.</p>
+
+        <div class="hero-badges">
+            <span class="badge">102 species</span>
+            <span class="badge">86.6% top-1 accuracy</span>
+            <span class="badge">Photos never stored</span>
+        </div>
+
+        <div class="tool-wrap" id="identify">
+            <div class="tool-card" id="upload-card">
+                <input type="file" id="camera-input" accept="image/*" capture="environment" hidden>
+                <input type="file" id="file-input" accept="image/*" hidden>
+
+                <div class="choose-row">
+                    <button class="btn btn-outline" onclick="document.getElementById('file-input').click()">
+                        <i class="fas fa-image"></i> Choose Photo
+                    </button>
+                    <button class="btn btn-outline" onclick="document.getElementById('camera-input').click()">
+                        <i class="fas fa-camera"></i> Take Photo
+                    </button>
+                </div>
+
+                <div id="dropzone">
+                    <i class="fas fa-seedling dz-icon"></i>
+                    <p>or drag &amp; drop an image here</p>
+                </div>
+
+                <div id="preview-wrapper">
+                    <img id="preview-img" alt="Selected flower preview">
+                    <div id="preview-meta"></div>
+                    <button id="retake-btn"><i class="fas fa-rotate-left"></i> Retake</button>
+                </div>
+
+                <button class="btn btn-primary" id="classify-btn" disabled>
+                    <span id="spinner"></span><span id="btn-text">Identify Flower</span>
+                </button>
+
+                <div id="error-msg"></div>
+            </div>
+
+            <div id="results-card">
+                <div class="results-head">Most likely species</div>
+                <div id="top-flower-name"></div>
+                <div id="results-list"></div>
             </div>
         </div>
-        <div class="preview-wrapper" id="preview-wrapper">
-            <img id="preview-img" alt="Preview of the selected flower image">
-            <div class="preview-meta" id="preview-meta"></div>
-            <button class="btn-retake" id="retake-btn" type="button">↺ Retake</button>
-        </div>
-        <div style="text-align:center;">
-            <button class="btn" id="classify-btn" disabled>
-                <span id="btn-text">Identify Flower</span>
-                <div class="spinner" id="spinner"></div>
-            </button>
-        </div>
-        <div class="error-msg" id="error-msg"></div>
-    </div>
+    </section>
 
-    <!-- Results card -->
-    <div class="card" id="results-card">
-        <div class="result-header">
-            <span class="badge">Top Predictions</span>
-            <h2 id="top-flower-name"></h2>
+    <!-- Features -->
+    <section class="features" id="features">
+        <h2 class="section-title">Built for quick, private identification</h2>
+        <p class="section-sub">Point, upload, and get an answer — without handing your photo library to anyone.</p>
+        <div class="grid">
+            <div class="card">
+                <i class="fas fa-bolt"></i>
+                <h3>Answers in seconds</h3>
+                <p>Inference runs on a CPU container sized for the job. Most identifications return in under a second once the service is warm.</p>
+            </div>
+            <div class="card">
+                <i class="fas fa-shield-halved"></i>
+                <h3>Your photo is not kept</h3>
+                <p>The image is written to a temporary file, classified, and deleted before the response is sent. Nothing is written to a database or bucket.</p>
+            </div>
+            <div class="card">
+                <i class="fas fa-compress"></i>
+                <h3>Resized in your browser</h3>
+                <p>Photos are scaled to 1024px and re-encoded on your device before upload, so a 12 MP camera shot never leaves as a 12 MP file.</p>
+            </div>
+            <div class="card">
+                <i class="fas fa-list-ol"></i>
+                <h3>Ranked alternatives</h3>
+                <p>Five candidates with confidence scores, not one guess — useful when a bloom sits between two similar species.</p>
+            </div>
         </div>
-        <div id="results-list"></div>
-    </div>
-</div>
+    </section>
 
-<footer>
-    Built with PyTorch &amp; FastAPI &mdash; <a href="https://github.com/websaleem/FloraSense" target="_blank" rel="noopener">FloraSense on GitHub</a>
-</footer>
+    <!-- How it works -->
+    <section class="tech-section" id="how-it-works">
+        <div class="tech-container">
+            <h2>How it works</h2>
+            <p class="section-sub">From tap to species name, every step of the path.</p>
+
+            <div class="pipeline">
+                <div class="pipeline-step">
+                    <i class="fas fa-camera"></i>
+                    <h4>Capture</h4>
+                    <p>Pick a photo or shoot one from the browser</p>
+                </div>
+                <div class="pipeline-arrow"><i class="fas fa-chevron-right"></i></div>
+                <div class="pipeline-step">
+                    <i class="fas fa-compress"></i>
+                    <h4>Resize</h4>
+                    <p>Scaled to 1024px and re-encoded on device</p>
+                </div>
+                <div class="pipeline-arrow"><i class="fas fa-chevron-right"></i></div>
+                <div class="pipeline-step">
+                    <i class="fas fa-lock"></i>
+                    <h4>Signed upload</h4>
+                    <p>Sent over HTTPS through a signed CDN origin</p>
+                </div>
+                <div class="pipeline-arrow"><i class="fas fa-chevron-right"></i></div>
+                <div class="pipeline-step">
+                    <i class="fas fa-brain"></i>
+                    <h4>Classify</h4>
+                    <p>EfficientNet-B0 scores all 102 categories</p>
+                </div>
+                <div class="pipeline-arrow"><i class="fas fa-chevron-right"></i></div>
+                <div class="pipeline-step">
+                    <i class="fas fa-ranking-star"></i>
+                    <h4>Rank</h4>
+                    <p>Top five returned, image deleted</p>
+                </div>
+            </div>
+
+            <ul class="tech-list">
+                <li><i class="fas fa-check-circle"></i><div><strong>PyTorch + FastAPI</strong><span>Transfer-learned torchvision backbone with a custom 102-class head, served by FastAPI.</span></div></li>
+                <li><i class="fas fa-check-circle"></i><div><strong>Serverless container</strong><span>Packaged as a container image on AWS Lambda — no server to keep running between requests.</span></div></li>
+                <li><i class="fas fa-check-circle"></i><div><strong>Origin access control</strong><span>The API is reachable only through the CDN, which signs every request. The origin rejects anything else.</span></div></li>
+                <li><i class="fas fa-check-circle"></i><div><strong>Sydney region</strong><span>Compute and storage run in ap-southeast-2. Photos are processed there and discarded.</span></div></li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- Models -->
+    <section class="models-section" id="models">
+        <h2 class="section-title">Three models, measured</h2>
+        <p class="section-sub">Each architecture was fine-tuned on the same 102-category dataset and scored on the same held-out test set.</p>
+        <div class="models-table">
+            <table>
+                <thead>
+                    <tr><th>Architecture</th><th>Top-1 accuracy</th><th>Correct</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td class="arch">EfficientNet-B0<span class="live">Live</span></td><td>86.57%</td><td>709 / 819</td></tr>
+                    <tr><td class="arch">DenseNet-121</td><td>83.15%</td><td>681 / 819</td></tr>
+                    <tr><td class="arch">VGG-16</td><td>77.53%</td><td>635 / 819</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="models-note">Measured on 819 held-out test images. EfficientNet-B0 is the model serving this page.</p>
+    </section>
+
+    <!-- Disclaimer -->
+    <section class="disclaimer-section">
+        <div class="disclaimer-container">
+            <h2><i class="fas fa-triangle-exclamation"></i> Identification is not advice</h2>
+            <p><strong>FloraSense is a machine learning demonstration and gets it wrong roughly one time in seven.</strong> It recognises only the 102 categories it was trained on, so a flower outside that set will still be matched to something — confidently, and incorrectly.</p>
+            <p>Never rely on it to decide whether a plant is safe to eat, touch, or give to a person or animal, and do not use it for medical, foraging, agricultural, or conservation decisions. Consult a qualified botanist or your local herbarium instead.</p>
+        </div>
+    </section>
+
+    <footer>
+        <a class="footer-logo" href="#home"><span class="mark">🌸</span> FloraSense</a>
+        <div class="footer-links">
+            <a href="/privacy.html">Privacy Policy</a>
+            <a href="/terms.html">Terms of Service</a>
+            <a href="https://github.com/websaleem/FloraSense" target="_blank" rel="noopener noreferrer">GitHub</a>
+        </div>
+        <p class="copyright">Built with PyTorch &amp; FastAPI · &copy; 2026 Saleem Khan</p>
+    </footer>
 
 <script>
+
 (function () {
     'use strict';
 

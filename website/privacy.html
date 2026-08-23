@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌸</text></svg>">
+  <title>FloraSense – Privacy Policy</title>
+  <style>
+    /* max-width must include the horizontal padding, or the body is 64px wider
+       than it claims and narrow screens scroll sideways. */
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.7;
+      color: #1a1024;
+      /* Set explicitly: without it the page inherits the browser's canvas, which
+         is near-black in dark mode and renders this dark text unreadable. */
+      background: #ffffff;
+      max-width: 760px;
+      margin: 48px auto;
+      padding: 0 32px 64px;
+    }
+    h1 { font-size: 26px; font-weight: 700; margin-bottom: 4px; }
+    h2 { font-size: 16px; font-weight: 700; margin-top: 32px; margin-bottom: 6px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+    p  { margin: 8px 0; }
+    ul { margin: 8px 0 8px 20px; }
+    li { margin: 4px 0; }
+    .meta { font-size: 12px; color: #666; margin-bottom: 32px; }
+    a  { color: #6b21a8; }
+    code { background: #f3e8ff; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+    .callout { background-color: #f3e8ff; border: 1px solid #e9d5ff; padding: 16px; border-radius: 8px; margin: 24px 0; }
+    .callout h2 { color: #6b21a8; margin-top: 0; border-bottom: none; font-size: 16px; }
+    .callout p { color: #4a1d6e; margin-bottom: 0; }
+    @media print { body { margin: 0; } }
+  </style>
+</head>
+<body>
+
+  <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+    <span style="font-size:34px; line-height:1;">🌸</span>
+    <h1 style="margin:0;">FloraSense – Privacy Policy</h1>
+  </div>
+  <p class="meta">
+    Last updated: August 23, 2026 &nbsp;·&nbsp; Version 1.0<br />
+    Developer: Saleem Khan &nbsp;·&nbsp;
+    <a href="/">https://florasense.websaleem.com</a>
+  </p>
+
+  <p>
+    FloraSense is a web application that identifies flower species from a photograph using a
+    deep learning model. This policy explains exactly what data is collected, what leaves your
+    device, how long anything is kept, and what controls you have.
+  </p>
+
+  <div class="callout">
+    <h2>The short version</h2>
+    <p><strong>Your photo is used to answer one request and is then deleted.</strong> There are no accounts, no cookies, no analytics, no advertising, and no tracking of any kind. Nothing you upload is stored, indexed, or used to train models.</p>
+  </div>
+
+  <h2>1. Data Collected</h2>
+  <p>FloraSense processes only the following:</p>
+  <ul>
+    <li><strong>The flower image you choose</strong> — the photo you select or capture, resized in your browser before it is sent.</li>
+    <li><strong>Ordinary request metadata</strong> — the IP address, timestamp, and browser user-agent that accompany any HTTPS request on the internet, as handled by Amazon CloudFront and AWS Lambda.</li>
+  </ul>
+  <p>
+    FloraSense does <strong>not</strong> collect your name, email address, account credentials,
+    location coordinates, contacts, device identifiers, or any other personal information.
+    There is no sign-up, no login, and no user profile.
+  </p>
+
+  <h2>2. What Happens to Your Photo</h2>
+  <p>When you press Identify:</p>
+  <ul>
+    <li>Your browser resizes the image so its longest edge is at most 1024 pixels and re-encodes it as JPEG. The original full-resolution file never leaves your device.</li>
+    <li>The resized image is sent over HTTPS to the classification service.</li>
+    <li>The service writes it to a temporary file, runs the model, and <strong>deletes that file before returning the response</strong> — including when classification fails with an error.</li>
+    <li>The species names and confidence scores are returned to your browser and displayed. They are not recorded anywhere.</li>
+  </ul>
+  <p>
+    Your image is never written to a database, an object store, or any durable storage.
+    It is not retained after the request, not reviewed by a human, and
+    <strong>not used to train or improve any model</strong>.
+  </p>
+
+  <h2>3. Where Data Is Processed</h2>
+  <p>
+    Classification runs on AWS Lambda in the <code>ap-southeast-2</code> (Sydney, Australia) region.
+    The web page is served from Amazon S3 through Amazon CloudFront, whose global edge network may
+    terminate your connection at a location closer to you. The image itself is only processed in Sydney.
+  </p>
+
+  <h2>4. Logs and Retention</h2>
+  <ul>
+    <li><strong>Application logs</strong> — the service writes logs to Amazon CloudWatch. These record service start-up and any error messages. They do <strong>not</strong> contain your image, your predictions, or the contents of your upload. These logs are currently kept without a fixed expiry.</li>
+    <li><strong>CDN access logs</strong> — CloudFront access logging is not enabled for FloraSense, so no per-request log of your visits is written to storage under our control.</li>
+    <li><strong>Your image</strong> — retained only for the duration of the request, as described in section 2.</li>
+  </ul>
+  <p>AWS may process request metadata as part of operating its services, under its own terms.</p>
+
+  <h2>5. Cookies and Tracking</h2>
+  <p>
+    FloraSense sets <strong>no cookies</strong> and uses <strong>no</strong> analytics, tracking pixels,
+    fingerprinting, session storage, or advertising technology. Nothing about your visit is persisted
+    in your browser between page loads.
+  </p>
+
+  <h2>6. Third-Party Services</h2>
+  <ul>
+    <li><strong>Amazon Web Services</strong> — hosting, content delivery, and compute (S3, CloudFront, Lambda, CloudWatch).</li>
+    <li><strong>cdnjs (Cloudflare)</strong> — the page loads an icon font stylesheet from <code>cdnjs.cloudflare.com</code>. Your browser's request for that file reveals your IP address to Cloudflare, as with any third-party asset on the web. No FloraSense data is sent with it.</li>
+  </ul>
+  <p>No data is sold, rented, or shared with advertisers or data brokers. There are none involved.</p>
+
+  <h2>7. Camera Permission</h2>
+  <p>
+    If you use "Take Photo", your browser asks for camera access and hands the resulting picture to
+    the page as a normal file selection. FloraSense does not stream video, does not access the camera
+    in the background, and receives nothing until you take a photo. You can revoke this permission
+    in your browser settings at any time.
+  </p>
+
+  <h2>8. Your Controls</h2>
+  <ul>
+    <li>Do not upload an image, and nothing is transmitted at all.</li>
+    <li>Press Retake before identifying to discard a selected photo — it is removed from the page and never sent.</li>
+    <li>Because nothing is stored, there is no account to delete and no stored data to request, correct, or export. Any such request would return nothing, because nothing is held.</li>
+  </ul>
+
+  <h2>9. Children's Privacy</h2>
+  <p>
+    FloraSense is not directed at children and collects no personal information from anyone,
+    including children under 13.
+  </p>
+
+  <h2>10. Accuracy and Intended Use</h2>
+  <p>
+    FloraSense recognises 102 flower categories and is correct roughly 86% of the time on its test
+    set. It is a demonstration project. Do not rely on its output for medical, foraging,
+    agricultural, or conservation decisions, or to judge whether a plant is safe to eat or handle.
+    See the <a href="/terms.html">Terms of Service</a>.
+  </p>
+
+  <h2>11. Changes to This Policy</h2>
+  <p>
+    If this policy changes, the "Last updated" date above changes with it. Material changes to how
+    data is handled will be reflected here before they take effect.
+  </p>
+
+  <h2>12. Contact</h2>
+  <p>
+    Questions about this policy can be raised at
+    <a href="https://github.com/websaleem/FloraSense/issues" target="_blank" rel="noopener noreferrer">github.com/websaleem/FloraSense/issues</a>.
+  </p>
+
+  <p style="margin-top:40px;"><a href="/">&larr; Back to FloraSense</a></p>
+
+</body>
+</html>
