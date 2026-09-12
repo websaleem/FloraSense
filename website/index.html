@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com; img-src 'self' data: blob:; connect-src 'self' https://formspree.io; form-action 'self' https://formspree.io; base-uri 'self'; object-src 'none'">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌸</text></svg>">
     <title>FloraSense | AI-Powered Flower Species Identification</title>
     <meta name="description" content="Upload a flower photo and FloraSense identifies its species from 102 categories using a deep learning model. Images are never stored.">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet"
+        integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg==" crossorigin="anonymous" referrerpolicy="no-referrer">
     <style>
         :root {
             --primary: #9333ea;
@@ -593,11 +595,13 @@
             row.innerHTML = `
                 <div class="result-rank">${i + 1}</div>
                 <div class="result-info">
-                    <div class="result-name">${p.flower_name}</div>
+                    <div class="result-name"></div>
                     <div class="bar-track"><div class="bar-fill" id="bar-${i}"></div></div>
                 </div>
                 <div class="result-prob">${pct}%</div>
             `;
+            // textContent, not interpolation: the name never becomes markup.
+            row.querySelector('.result-name').textContent = p.flower_name;
             resList.appendChild(row);
         });
 

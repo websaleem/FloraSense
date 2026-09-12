@@ -30,6 +30,18 @@ Parameters:
     MaxValue: 900
     Description: Lambda timeout in seconds.
 
+  MaxConcurrency:
+    Type: Number
+    Default: 5
+    MinValue: 1
+    MaxValue: 100
+    Description: >
+      Reserved concurrency for the inference function. /predict is public
+      (CloudFront fronts the Function URL, and anyone can reach CloudFront) and
+      runs a PyTorch model on a multi-GB Lambda, so this is the hard ceiling on
+      how much compute an abusive caller can buy. Raise it only alongside a WAF
+      rate limit on the distribution.
+
   Arch:
     Type: String
     Default: efficientnet_b0
@@ -134,6 +146,7 @@ Resources:
       Role: !GetAtt LambdaExecutionRole.Arn
       MemorySize: !Ref MemorySize
       Timeout: !Ref Timeout
+      ReservedConcurrentExecutions: !Ref MaxConcurrency
       Architectures:
         - x86_64
       Environment:
