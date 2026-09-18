@@ -1,0 +1,93 @@
+version: 0.2
+
+# Builds the FloraSense Android App Bundle. Mirrors SecureBin's buildspec, adapted
+# for this monorepo: the app lives in mobile/, and the website deploys separately
+# through GitHub Actions, so there is no site deployment here.
+
+env:
+  shell: bash
+  parameter-store:
+    UPLOAD_KEYSTORE_BASE64: "/florasense/mobile/upload-keystore"
+    UPLOAD_STORE_PASSWORD: "/florasense/mobile/upload-store-password"
+    UPLOAD_KEY_ALIAS: "/florasense/mobile/upload-key-alias"
+    UPLOAD_KEY_PASSWORD: "/florasense/mobile/upload-key-password"
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+      java: corretto17
+    commands:
+      - cd "$CODEBUILD_SRC_DIR/mobile"
+      - |
+        # BRANCH_NAME is passed by the pipeline (infra/mobile-ci-cd.yaml). Under
+        # CodePipeline, CODEBUILD_SOURCE_VERSION is an S3 artifact ARN and can
+        # never identify the branch. An unknown branch stops the build rather
+        # than guessing which API a binary should talk to.
+        case "${BRANCH_NAME:-}" in
+          main|refs/heads/main)
+            echo "=== Configuring for PRODUCTION (branch: $BRANCH_NAME) ==="
+            export SSM_PREFIX=/florasense/mobile/prod
+            ;;
+          "")
+            echo "FATAL: BRANCH_NAME is not set; refusing to guess the environment"; exit 1
+            ;;
+          *)
+            echo "=== Configuring for DEVELOPMENT (branch: $BRANCH_NAME) ==="
+            export SSM_PREFIX=/florasense/mobile/dev
+            ;;
+        esac
+        # Strict resolution: a failed lookup must stop the build, or a production
+        # binary could silently ship pointed at the development API.
+        API_URL=$(aws ssm get-parameter --name "${SSM_PREFIX}/api-base-url" --query 'Parameter.Value' --output text)
+        if [ -z "$API_URL" ] || [ "$API_URL" = "None" ]; then
+          echo "FATAL: SSM parameter ${SSM_PREFIX}/api-base-url is missing or empty"; exit 1
+        fi
+        case "$API_URL" in
+          https://*) ;;
+          *) echo "FATAL: ${SSM_PREFIX}/api-base-url must be an https URL, got: $API_URL"; exit 1 ;;
+        esac
+        # Release bundling runs with NODE_ENV=production, which reads .env.production.
+        echo "EXPO_PUBLIC_API_BASE_URL=$API_URL" > .env.production
+        cat .env.production
+      - |
+        # The standard:7.0 image ships no Android SDK.
+        export ANDROID_HOME="$HOME/android-sdk"
+        export ANDROID_SDK_ROOT="$ANDROID_HOME"
+        mkdir -p "$ANDROID_HOME/cmdline-tools"
+        curl -fsSL -o /tmp/cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip \
+          && unzip -q /tmp/cmdline-tools.zip -d "$ANDROID_HOME/cmdline-tools" \
+          && mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest" \
+          || { echo "FATAL: could not install Android cmdline-tools"; exit 1; }
+        yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+        "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+          "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006" "cmake;3.30.5" \
+          > /tmp/sdkmanager.log 2>&1 \
+          || { tail -50 /tmp/sdkmanager.log; echo "FATAL: sdkmanager install failed"; exit 1; }
+        echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+      - npm ci --legacy-peer-deps
+  pre_build:
+    commands:
+      - cd "$CODEBUILD_SRC_DIR/mobile"
+      - echo "$UPLOAD_KEYSTORE_BASE64" | base64 --decode > android/app/upload.jks
+  build:
+    commands:
+      - cd "$CODEBUILD_SRC_DIR/mobile/android"
+      - |
+        # Signing values go in as ORG_GRADLE_PROJECT_* environment variables,
+        # which Gradle maps to project properties. Passing them as -P arguments
+        # would put the passwords in the process argument list.
+        export ORG_GRADLE_PROJECT_FLORASENSE_UPLOAD_STORE_FILE=upload.jks
+        export ORG_GRADLE_PROJECT_FLORASENSE_UPLOAD_STORE_PASSWORD="$UPLOAD_STORE_PASSWORD"
+        export ORG_GRADLE_PROJECT_FLORASENSE_UPLOAD_KEY_ALIAS="$UPLOAD_KEY_ALIAS"
+        export ORG_GRADLE_PROJECT_FLORASENSE_UPLOAD_KEY_PASSWORD="$UPLOAD_KEY_PASSWORD"
+        ./gradlew bundleRelease
+  post_build:
+    commands:
+      - rm -f "$CODEBUILD_SRC_DIR/mobile/android/app/upload.jks"
+
+artifacts:
+  files:
+    - mobile/android/app/build/outputs/bundle/release/app-release.aab
+  discard-paths: yes
+  name: florasense-release-aab
