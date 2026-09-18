@@ -43,20 +43,21 @@
     <h1 style="margin:0;">FloraSense – Privacy Policy</h1>
   </div>
   <p class="meta">
-    Last updated: July 29, 2026 &nbsp;·&nbsp; Version 1.0<br />
+    Last updated: September 18, 2026 &nbsp;·&nbsp; Version 1.1<br />
     Developer: Saleem Khan &nbsp;·&nbsp;
     <a href="/">https://florasense.websaleem.com</a>
   </p>
 
   <p>
-    FloraSense is a web application that identifies flower species from a photograph using a
-    deep learning model. This policy explains exactly what data is collected, what leaves your
-    device, how long anything is kept, and what controls you have.
+    FloraSense identifies flower species from a photograph using a deep learning model. This policy
+    covers both the FloraSense website and the FloraSense Android app, which send photos to the same
+    service. It explains exactly what data is collected, what leaves your device, how long anything
+    is kept, and what controls you have.
   </p>
 
   <div class="callout">
     <h2>The short version</h2>
-    <p><strong>Your photo is used to answer one request and is then deleted.</strong> There are no accounts, no cookies, no analytics, no advertising, and no tracking of any kind. Nothing you upload is stored, indexed, or used to train models. The only personal information FloraSense ever receives is what you choose to type into the optional support form.</p>
+    <p><strong>Your photo is used to answer one request and is then deleted.</strong> There are no accounts, no cookies, no analytics, no advertising, and no tracking of any kind. Nothing you upload is stored, indexed, or used to train models. The only personal information FloraSense ever receives is what you choose to type into the optional support form. The Android app keeps a history of your scans on your device only — the service never sees it.</p>
   </div>
 
   <h2>1. Data Collected</h2>
@@ -108,7 +109,8 @@
   <p>
     FloraSense sets <strong>no cookies</strong> and uses <strong>no</strong> analytics, tracking pixels,
     fingerprinting, session storage, or advertising technology. Nothing about your visit is persisted
-    in your browser between page loads.
+    in your browser between page loads. The Android app contains no analytics or advertising either,
+    and stores nothing beyond the scan history described in section 9.
   </p>
 
   <h2>6. Third-Party Services</h2>
@@ -139,27 +141,50 @@
 
   <h2>8. Camera Permission</h2>
   <p>
-    If you use "Take Photo", your browser asks for camera access and hands the resulting picture to
-    the page as a normal file selection. FloraSense does not stream video, does not access the camera
-    in the background, and receives nothing until you take a photo. You can revoke this permission
+    <strong>On the website:</strong> if you use "Take Photo", your browser asks for camera access and
+    hands the resulting picture to the page as a normal file selection. You can revoke this permission
     in your browser settings at any time.
   </p>
+  <p>
+    <strong>In the Android app:</strong> the app asks for camera access the first time you use it, and
+    requests no other permission — it holds only camera and internet access. Choosing an existing
+    photo instead uses the Android system photo picker, which grants access to the single picture you
+    pick and needs no storage permission. You can revoke camera access in Android Settings at any
+    time; the gallery option keeps working without it.
+  </p>
+  <p>
+    In both cases FloraSense does not stream video, does not access the camera in the background, and
+    receives nothing until you take or choose a photo.
+  </p>
 
-  <h2>9. Your Controls</h2>
+  <h2>9. Scan History in the Android App</h2>
+  <p>
+    The app keeps a history of your identifications so you can look back at them. Each entry holds a
+    copy of the photo and the species list that came back.
+  </p>
+  <ul>
+    <li>It is stored in the app's private storage <strong>on your device only</strong>. It is never uploaded, and the service holds no record of it.</li>
+    <li>It is excluded from Android's automatic backup, so it is not copied to Google Drive.</li>
+    <li>It keeps the 50 most recent identifications; older entries and their photos are deleted automatically.</li>
+    <li>"Clear All" in the History screen deletes every entry and its photo immediately, and uninstalling the app removes all of it.</li>
+  </ul>
+
+  <h2>10. Your Controls</h2>
   <ul>
     <li>Do not upload an image, and nothing is transmitted at all.</li>
     <li>Press Retake before identifying to discard a selected photo — it is removed from the page and never sent.</li>
+    <li>In the Android app, "Clear All" on the History screen deletes every saved scan and its photo from the device, and uninstalling removes all of it.</li>
     <li>There is no account to delete: none is created, and no photo or prediction is retained, so a data access request about your use of the identifier would return nothing.</li>
     <li>If you have sent a support message, you can ask for it to be deleted from the developer's inbox by replying to it or writing to the same address.</li>
   </ul>
 
-  <h2>10. Children's Privacy</h2>
+  <h2>11. Children's Privacy</h2>
   <p>
     FloraSense is not directed at children and collects no personal information from anyone,
     including children under 13.
   </p>
 
-  <h2>11. Accuracy and Intended Use</h2>
+  <h2>12. Accuracy and Intended Use</h2>
   <p>
     FloraSense recognises 102 flower categories and is correct roughly 86% of the time on its test
     set. It is a demonstration project. Do not rely on its output for medical, foraging,
@@ -167,13 +192,13 @@
     See the <a href="/terms.html">Terms of Service</a>.
   </p>
 
-  <h2>12. Changes to This Policy</h2>
+  <h2>13. Changes to This Policy</h2>
   <p>
     If this policy changes, the "Last updated" date above changes with it. Material changes to how
     data is handled will be reflected here before they take effect.
   </p>
 
-  <h2>13. Contact</h2>
+  <h2>14. Contact</h2>
   <p>
     Questions about this policy can be sent through
     <a href="/contact-support.html?topic=Data+or+privacy+concern">Contact Support</a>, or raised at
