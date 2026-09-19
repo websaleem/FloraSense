@@ -43,7 +43,7 @@
     <h1 style="margin:0;">FloraSense – Privacy Policy</h1>
   </div>
   <p class="meta">
-    Last updated: September 18, 2026 &nbsp;·&nbsp; Version 1.1<br />
+    Last updated: September 20, 2026 &nbsp;·&nbsp; Version 1.1.1<br />
     Developer: Saleem Khan &nbsp;·&nbsp;
     <a href="/">https://florasense.websaleem.com</a>
   </p>
@@ -147,7 +147,7 @@
   </p>
   <p>
     <strong>In the Android app:</strong> the app asks for camera access the first time you use it, and
-    requests no other permission — it holds only camera and internet access. Choosing an existing
+    requests no permission beyond that. Alongside the camera it holds only <code>INTERNET</code>, <code>ACCESS_NETWORK_STATE</code> and <code>ACCESS_WIFI_STATE</code>, which let it reach the service and notice when the connection drops, and <code>VIBRATE</code>, which it uses for feedback on a tap. Choosing an existing
     photo instead uses the Android system photo picker, which grants access to the single picture you
     pick and needs no storage permission. You can revoke camera access in Android Settings at any
     time; the gallery option keeps working without it.
