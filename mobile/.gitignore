@@ -1,0 +1,41 @@
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Environment files hold per-environment API URLs written by the build
+.env
+.env.*
+!.env.example
+.env.deploy
+
+# Native
+# The debug keystore is the well-known Android debug key, not a secret, but it
+# is still a keystore and SecureBin keeps it out of the repo too.
+/android/app/debug.keystore
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Play Console service account for fastlane
+android/app/api.json
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+
+# macOS
+.DS_Store
+
+# typescript
+*.tsbuildinfo

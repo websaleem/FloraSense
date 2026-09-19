@@ -12,6 +12,7 @@ This project was completed as part of RMIT's AI Programming with Python Nanodegr
 backend/lambda/     FastAPI handler, shared model utilities, Dockerfile
 training/           Training, CLI prediction, and evaluation scripts
 website/            Static web UI (S3 + CloudFront)
+mobile/             Android app (Expo / React Native)
 infra/              CloudFormation templates
 scripts/            Deployment scripts
 tests/              Pytest suite
@@ -32,6 +33,7 @@ inside the Lambda image, and the training scripts import it from there via
 - [CLI Prediction](#cli-prediction)
 - [Testing](#testing)
 - [AWS Deployment](#aws-deployment)
+- [Android App](#android-app)
 - [Web Front End](#web-front-end)
 - [Continuous Integration](#continuous-integration)
 - [API Endpoints](#api-endpoints)
@@ -197,6 +199,24 @@ Then delete the ECR images manually if needed:
 ```bash
 aws ecr delete-repository --repository-name florasense --region ap-southeast-2 --force
 ```
+
+## Android App
+
+An Expo / React Native client lives in `mobile/`. It photographs a flower and
+shows the same top-five species the website returns, keeping a local history on
+the device. Photos are resized on the phone and deleted server-side after
+classification, exactly as on the web.
+
+```bash
+cd mobile
+npm install --legacy-peer-deps
+cp .env.example .env          # set EXPO_PUBLIC_API_BASE_URL
+npx expo run:android
+```
+
+Release builds run through CodeBuild (`mobile/buildspec.yml`) with the pipeline
+in `infra/mobile-ci-cd.yaml`, which triggers only on changes under `mobile/`.
+See [mobile/README.md](mobile/README.md) for the signing and SSM setup.
 
 ## Web Front End
 
