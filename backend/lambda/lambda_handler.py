@@ -27,6 +27,10 @@ _model = None
 _cat_to_name: dict = {}
 _device = None
 _arch: str = ""
+# Whether a load has been attempted in this process. Distinct from `_model is
+# not None`: when no checkpoint exists the load legitimately yields None, and
+# without this flag every single request would retry the whole search.
+_load_attempted = False
 
 # The flower dataset has 102 categories; the classifier head is built with that
 # many outputs, so no request can ever be answered with more predictions.
@@ -36,9 +40,22 @@ NUM_CLASSES = 102
 # ---------------------------------------------------------------------------
 # FastAPI lifespan — load model once at startup
 # ---------------------------------------------------------------------------
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global _model, _cat_to_name, _device, _arch
+def _load_model_once():
+    """Load the checkpoint and category map. Safe to call repeatedly.
+
+    Kept out of the Lambda init phase on purpose. Lambda allows 10 seconds to
+    initialise, and loading these weights does not fit: every cold start was
+    ending `INIT_REPORT ... Phase: init Status: timeout`, and the request that
+    triggered it came back to the browser as a 502. Doing the work on the first
+    request instead spends the same time under the function timeout, which is
+    60 seconds, so the first caller waits and everyone after them is served
+    from a warm container.
+    """
+    global _model, _cat_to_name, _device, _arch, _load_attempted
+
+    if _load_attempted:
+        return
+    _load_attempted = True
 
     _arch = os.environ.get("ARCH", "efficientnet_b0")
     _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -76,6 +93,22 @@ async def lifespan(app: FastAPI):
     else:
         cp = resolve_checkpoint_path(_arch, search_dir)
         print(f"✓  Model '{_arch}' loaded from {cp} on {_device}")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Starting the app clears any state a previous one left in these globals,
+    # so a fresh app always re-attempts the load rather than inheriting it.
+    global _model, _load_attempted
+    _model = None
+    _load_attempted = False
+
+    # Running under `uvicorn lambda_handler:app` there is no init budget to
+    # blow, and loading up front means the first local request is not slow.
+    # Under Lambda this is the init phase, so leave it empty and let the first
+    # request pay for the load.
+    if not os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+        _load_model_once()
 
     yield  # application runs here
 
@@ -158,6 +191,8 @@ async def predict_flower(
         Accept an uploaded image, run inference, and return the top-k
         predictions with human-readable flower names and probabilities.
     """
+    _load_model_once()
+
     if _model is None:
         raise HTTPException(
             status_code=503,

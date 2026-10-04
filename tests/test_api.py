@@ -148,3 +148,71 @@ def test_predict_does_not_leak_internals_on_failure(client, monkeypatch):
     )
     assert resp.status_code == 500
     assert "secret.pth" not in resp.text
+
+
+# --------------------------------------------------------------------------
+# Cold start
+# --------------------------------------------------------------------------
+class TestLambdaInitStaysCheap:
+    """Lambda allows 10 seconds to initialise and loading the weights does not
+    fit, so every cold start ended `Phase: init Status: timeout` and the
+    request that caused it reached the browser as a 502. Under Lambda the load
+    has to happen on the first request instead, where the 60-second function
+    timeout applies."""
+
+    def test_startup_under_lambda_does_not_load_the_model(
+        self, monkeypatch, tiny_model, cat_to_name_file
+    ):
+        calls = []
+        monkeypatch.setattr(
+            lambda_handler, "load_checkpoint",
+            lambda *a, **k: (calls.append(1), tiny_model)[1],
+        )
+        monkeypatch.setattr(lambda_handler, "resolve_checkpoint_path", lambda *a, **k: None)
+        monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "florasense-api")
+
+        with TestClient(lambda_handler.app):
+            assert calls == [], "the model was loaded during the Lambda init phase"
+
+    def test_the_first_request_loads_it(self, monkeypatch, tiny_model, cat_to_name_file):
+        calls = []
+        monkeypatch.setattr(
+            lambda_handler, "load_checkpoint",
+            lambda *a, **k: (calls.append(1), tiny_model)[1],
+        )
+        monkeypatch.setattr(lambda_handler, "resolve_checkpoint_path", lambda *a, **k: None)
+        monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "florasense-api")
+
+        with TestClient(lambda_handler.app) as c:
+            # top_k=1: the stand-in model has far fewer than 102 classes, and
+            # the default of 5 would overrun it. This test is about when the
+            # load happens, not about what is predicted.
+            resp = c.post(
+                "/predict?top_k=1",
+                files={"file": ("flower.jpg", image_bytes(), "image/jpeg")},
+            )
+
+        assert calls == [1], "the first request did not load the model exactly once"
+        assert resp.status_code == 200
+
+    def test_a_missing_checkpoint_is_not_retried_on_every_request(
+        self, monkeypatch, cat_to_name_file
+    ):
+        """Searching for weights that are not there is not free, and a 503 does
+        not become a 200 by asking again."""
+        calls = []
+        monkeypatch.setattr(
+            lambda_handler, "load_checkpoint",
+            lambda *a, **k: (calls.append(1), None)[1],
+        )
+        monkeypatch.setattr(lambda_handler, "resolve_checkpoint_path", lambda *a, **k: None)
+        monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "florasense-api")
+
+        with TestClient(lambda_handler.app) as c:
+            for _ in range(3):
+                resp = c.post(
+                    "/predict", files={"file": ("flower.jpg", image_bytes(), "image/jpeg")}
+                )
+                assert resp.status_code == 503
+
+        assert calls == [1], f"load retried {len(calls)} times"
