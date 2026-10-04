@@ -28,6 +28,24 @@
 // calling the API directly — a curl, a script, a future client — who would
 // otherwise spend a long time looking for a credentials problem that does not
 // exist.
+// DEPLOYING IT. The distributions are not part of florasense-stack — the stack
+// only owns the function, its ECR repository and the invoke permission, and
+// takes the distribution ids as parameters. So this is attached by hand, to the
+// /predict* behaviour of both, as a viewer-request association:
+//
+//   aws cloudfront create-function --name florasense-predict-guard \
+//     --function-config '{"Comment":"...","Runtime":"cloudfront-js-2.0"}' \
+//     --function-code fileb://infra/cloudfront/predict-guard.js
+//   aws cloudfront publish-function --name florasense-predict-guard --if-match <etag>
+//
+// then, for each of E2J826Z4CU0GAI (prod) and E2KS7KR6VDA6ZP (dev), add to the
+// /predict* cache behaviour:
+//
+//   "FunctionAssociations": {"Quantity": 1, "Items": [
+//     {"FunctionARN": "<published arn>", "EventType": "viewer-request"}]}
+//
+// After changing this file, re-upload with update-function and publish again:
+// editing the file alone changes nothing that is serving traffic.
 function handler(event) {
   var request = event.request;
 
