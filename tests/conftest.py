@@ -64,3 +64,25 @@ def cat_to_name_file(tmp_path, class_to_idx):
     names = {key: f"test flower {key}" for key in class_to_idx}
     path.write_text(json.dumps(names))
     return str(path)
+
+
+@pytest.fixture(autouse=True)
+def reset_module_state():
+    """Give each test a module with no model loaded.
+
+    The handler caches the model in module globals on purpose, and the app's
+    lifespan deliberately does not clear them: Mangum runs the lifespan on
+    every invocation, so clearing them there threw the model away between
+    requests in production. Test isolation therefore has to happen here.
+    """
+    import lambda_handler
+
+    for name, value in (
+        ("_model", None),
+        ("_cat_to_name", {}),
+        ("_device", None),
+        ("_arch", ""),
+        ("_load_attempted", False),
+    ):
+        setattr(lambda_handler, name, value)
+    yield

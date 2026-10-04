@@ -42,6 +42,17 @@ DISTRIBUTION_PARAMS=()
 [[ -n "${DEV_DISTRIBUTION_ID}"  ]] && DISTRIBUTION_PARAMS+=("DevDistributionId=${DEV_DISTRIBUTION_ID}")
 [[ -n "${PROD_DISTRIBUTION_ID}" ]] && DISTRIBUTION_PARAMS+=("ProdDistributionId=${PROD_DISTRIBUTION_ID}")
 
+# Passed explicitly on every deploy, not left to the template default.
+# `aws cloudformation deploy` reuses whatever value the stack already holds for
+# a parameter it is not given, so a stack created at 2048 stays at 2048 however
+# the template default changes. At 2048 the cold start does not fit Lambda's
+# 10-second init budget: init times out, the whole initialisation is re-run
+# inside the invoke, and those requests take 22-42s and surface as a 502.
+# 3008 is the account ceiling, not a round number chosen for taste: Lambda
+# rejects 3072 outright, and a stack update that tries it rolls back — taking
+# the memory setting down to the template's old value on the way.
+MEMORY_SIZE="${MEMORY_SIZE:-3008}"
+
 LAMBDA_FUNCTION_NAME="${APP_NAME}-api"
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 ECR_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${APP_NAME}"
@@ -104,6 +115,7 @@ aws cloudformation deploy \
     --stack-name "${STACK_NAME}" \
     --parameter-overrides AppName="${APP_NAME}" ImageTag="${IMAGE_TAG}" \
                           Arch="${ARCH}" DeployFunction="${FIRST_PASS}" \
+                          MemorySize="${MEMORY_SIZE}" \
                           ${DISTRIBUTION_PARAMS[@]+"${DISTRIBUTION_PARAMS[@]}"} \
     --capabilities CAPABILITY_NAMED_IAM \
     --region "${AWS_REGION}" \
@@ -154,6 +166,7 @@ aws cloudformation deploy \
     --stack-name "${STACK_NAME}" \
     --parameter-overrides AppName="${APP_NAME}" ImageTag="${IMAGE_TAG}" \
                           Arch="${ARCH}" DeployFunction="true" \
+                          MemorySize="${MEMORY_SIZE}" \
                           ${DISTRIBUTION_PARAMS[@]+"${DISTRIBUTION_PARAMS[@]}"} \
     --capabilities CAPABILITY_NAMED_IAM \
     --region "${AWS_REGION}" \

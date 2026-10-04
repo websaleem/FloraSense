@@ -216,3 +216,32 @@ class TestLambdaInitStaysCheap:
                 assert resp.status_code == 503
 
         assert calls == [1], f"load retried {len(calls)} times"
+
+    def test_the_model_survives_a_second_lifespan_run(
+        self, monkeypatch, tiny_model, cat_to_name_file
+    ):
+        """Mangum runs the ASGI lifespan on every invocation, not once per
+        container. A lifespan that resets the module globals therefore threw
+        the loaded model away between requests: every prediction reloaded it
+        (12.4s instead of 0.2s) and /health reported model_loaded=false for the
+        life of the container."""
+        calls = []
+        monkeypatch.setattr(
+            lambda_handler, "load_checkpoint",
+            lambda *a, **k: (calls.append(1), tiny_model)[1],
+        )
+        monkeypatch.setattr(lambda_handler, "resolve_checkpoint_path", lambda *a, **k: None)
+        monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "florasense-api")
+
+        # First invocation: startup, then a request that loads the model.
+        with TestClient(lambda_handler.app) as c:
+            c.post("/predict?top_k=1", files={"file": ("f.jpg", image_bytes(), "image/jpeg")})
+        assert calls == [1]
+
+        # Second invocation against the same warm container.
+        with TestClient(lambda_handler.app) as c:
+            assert c.get("/health").json()["model_loaded"] is True, \
+                "the lifespan discarded the model between invocations"
+            c.post("/predict?top_k=1", files={"file": ("f.jpg", image_bytes(), "image/jpeg")})
+
+        assert calls == [1], f"model was reloaded {len(calls)} times across invocations"

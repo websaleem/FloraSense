@@ -19,8 +19,12 @@ Parameters:
 
   MemorySize:
     Type: Number
-    Default: 3072
-    AllowedValues: [512, 1024, 2048, 3072]
+    Default: 3008
+    # 3008 is this account's ceiling: Lambda rejects anything above it with
+    # "Member must have value less than or equal to 3008" until the per-function
+    # memory quota is raised. 3072 looks like the obvious round number and fails
+    # the stack update.
+    AllowedValues: [512, 1024, 2048, 3008]
     Description: >-
       Lambda memory in MB. This also sets the CPU share, which is what makes it
       matter here: at 2048 the cold start did not fit in Lambda's 10-second
@@ -29,7 +33,7 @@ Parameters:
       initialisation inside the invoke, and those requests took 22-42s and
       reached the browser as a 502. At ~3 GB init finishes in about 3.7s.
       It is also cheaper: 3,970 ms billed against 42,238 ms. Do not lower this
-      below 3072 without re-checking Init Duration in the logs.
+      without re-checking Init Duration in the logs.
 
   Timeout:
     Type: Number

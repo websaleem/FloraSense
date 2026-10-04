@@ -97,11 +97,13 @@ def _load_model_once():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Starting the app clears any state a previous one left in these globals,
-    # so a fresh app always re-attempts the load rather than inheriting it.
-    global _model, _load_attempted
-    _model = None
-    _load_attempted = False
+    # Deliberately does not reset the module globals. Mangum runs the ASGI
+    # lifespan on *every* invocation, not once per container, so clearing
+    # `_model` here threw the loaded model away between requests and made each
+    # prediction reload it -- 12.4s per call instead of 0.2s, and /health
+    # permanently reporting model_loaded=false while `_arch` stayed populated,
+    # which is how this was noticed. Tests get their isolation from the
+    # reset_module_state fixture in tests/conftest.py instead.
 
     # Running under `uvicorn lambda_handler:app` there is no init budget to
     # blow, and loading up front means the first local request is not slow.
