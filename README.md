@@ -269,12 +269,34 @@ the origin directly.
 ### Example Request
 
 ```bash
-curl -X POST "https://florasense.websaleem.com/predict?top_k=5" \
-  -F "file=@flower.jpg"
+./scripts/predict.sh flower.jpg 5
 ```
 
 `top_k` accepts 1–102 (the number of flower categories); anything outside that
 range returns a 422.
+
+#### Why not a plain `curl -F`
+
+`curl -F "file=@flower.jpg"` returns **403** with a message about an AWS secret
+access key. That message is misleading — no caller of this API has or needs AWS
+credentials.
+
+`/predict` reaches the Lambda Function URL through a CloudFront Origin Access
+Control, which SigV4-signs each origin request. CloudFront never reads the
+body, so it signs whatever payload hash the viewer supplied, and a Function URL
+with IAM auth rejects a request whose hash does not match the bytes it
+received. The caller must therefore send the body's SHA-256, lowercase hex, in
+`x-amz-content-sha256`. The `UNSIGNED-PAYLOAD` sentinel that S3 accepts is
+rejected here, so there is nothing to substitute.
+
+That also means the multipart body has to be assembled by hand: `curl -F` and
+the browser's `FormData` both choose their own boundary and will not reveal the
+exact bytes they produced, leaving nothing to hash. `scripts/predict.sh` does
+this, as do the web front end and the Android app.
+
+A POST that arrives without the header is answered by a CloudFront Function
+(`infra/cloudfront/predict-guard.js`) with a 400 explaining the requirement,
+rather than the origin's 403 about credentials.
 
 ### Example Response
 
