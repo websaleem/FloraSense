@@ -227,6 +227,60 @@ Resources:
       Principal: cloudfront.amazonaws.com
       SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${ProdDistributionId}'
 
+  # -------------------------------------------------------------------------
+  #  Keep-warm
+  # -------------------------------------------------------------------------
+  #  This is a container-image function holding PyTorch. A cold start has to
+  #  page the image in before a line of Python runs, which does not fit
+  #  Lambda's 10-second init budget: init times out, Lambda re-runs the whole
+  #  initialisation inside the invoke, and the request takes 40-50s. Measured
+  #  on an idle function: 50.3s for GET /health, against 0.2s warm.
+  #
+  #  Nothing in the function can fix that, because the cost is paid before it
+  #  starts. Moving the model load out of init (which was done) stops the load
+  #  being counted twice but does not bring init under the budget on its own.
+  #  So the answer is to stop real users meeting a cold start: ping it often
+  #  enough that the environment stays alive.
+  #
+  #  /health is the right target. It returns without loading the model, so the
+  #  ping stays a few milliseconds, and the first real prediction afterwards
+  #  loads the weights from an already-warm filesystem.
+  #
+  #  Cost: ~8,600 invocations a month at a few ms each, which is noise against
+  #  the free tier and far cheaper than provisioned concurrency.
+  KeepWarmRule:
+    Type: AWS::Events::Rule
+    Condition: CreateFunction
+    Properties:
+      Name: !Sub '${AppName}-keep-warm'
+      Description: >-
+        Pings the function every 5 minutes so real traffic does not pay the
+        container-image cold start. See the comment in infra/florasense-api.yml.
+      ScheduleExpression: 'rate(5 minutes)'
+      State: ENABLED
+      Targets:
+        - Id: florasense-keep-warm
+          Arn: !GetAtt LambdaFunction.Arn
+          # A Function URL event shaped the way Mangum expects, so the ping
+          # exercises the same routing a real request does rather than a path
+          # that could rot unnoticed.
+          Input: >-
+            {"version":"2.0","routeKey":"$default","rawPath":"/health",
+             "rawQueryString":"","headers":{"x-keep-warm":"1"},
+             "requestContext":{"http":{"method":"GET","path":"/health",
+             "protocol":"HTTP/1.1","sourceIp":"127.0.0.1","userAgent":"keep-warm"},
+             "requestId":"keep-warm","routeKey":"$default","stage":"$default"},
+             "isBase64Encoded":false}
+
+  KeepWarmPermission:
+    Type: AWS::Lambda::Permission
+    Condition: CreateFunction
+    Properties:
+      FunctionName: !Ref LambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt KeepWarmRule.Arn
+
 # ---------------------------------------------------------------------------
 #  Outputs
 # ---------------------------------------------------------------------------
