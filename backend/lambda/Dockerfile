@@ -36,10 +36,15 @@ COPY backend/lambda/requirements.txt .
 # Install the CPU-only build of torch before anything else. The default wheels
 # bundle CUDA libraries worth well over a gigabyte that Lambda can never use —
 # they inflate the image and lengthen cold start. Installing these first means
-# the torch>=2.0.0 pin below is already satisfied and pip leaves them alone.
+# the pin in requirements.txt is already satisfied and pip leaves them alone.
+#
+# The versions must match requirements.txt exactly. If they drift, the second
+# pip install resolves the difference against PyPI rather than this index and
+# pulls the CUDA build back in — which is the whole thing this step exists to
+# avoid, and it fails silently as a much larger image rather than as an error.
 RUN pip install --no-cache-dir \
     --index-url https://download.pytorch.org/whl/cpu \
-    torch torchvision
+    torch==2.14.1 torchvision==0.29.1
 
 # Install the remaining dependencies
 RUN pip install --no-cache-dir -r requirements.txt

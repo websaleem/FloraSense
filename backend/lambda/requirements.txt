@@ -1,8 +1,33 @@
-torch>=2.0.0
-torchvision>=0.15.0
-tqdm
-Pillow
-fastapi
-uvicorn[standard]
-python-multipart
-mangum
+# Pinned exactly. These were unpinned (torch>=2.0.0, and five packages with no
+# constraint at all), which meant every image rebuild resolved whatever was
+# current that day: builds were not reproducible, and an upstream release
+# landed in production the next time anyone deployed, unannounced.
+#
+# The versions below are the ones pip would have resolved when the running
+# image was built (2026-10-04), chosen from each project's release history
+# rather than from today's latest, so pinning records what is already deployed
+# instead of quietly upgrading it. All have cp312 manylinux_2_28_x86_64 wheels,
+# which is what the Lambda base image needs.
+#
+# torch and torchvision are also pinned in the Dockerfile, where they are
+# installed first from the CPU-only index. Both places must say the same
+# version: if this file asked for a different one, the second pip install would
+# "correct" it from PyPI and pull the CUDA build, which is over a gigabyte of
+# libraries Lambda can never use.
+torch==2.14.1
+torchvision==0.29.1
+
+# Pillow does the image decoding; python-multipart is what lets FastAPI accept
+# the upload at all, though nothing imports it directly.
+Pillow==12.3.0
+python-multipart==0.0.32
+
+fastapi==0.142.2
+mangum==0.22.0
+
+# Not imported by the Lambda. uvicorn is for running the app locally
+# (`uvicorn lambda_handler:app`) and tqdm belongs to training; both are kept so
+# the image matches what is deployed today, but neither is needed to serve a
+# request and dropping them would shrink the image.
+uvicorn[standard]==0.54.0
+tqdm==4.70.1
