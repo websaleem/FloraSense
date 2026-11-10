@@ -1,0 +1,16 @@
+{
+  "Name": "florasense-security-headers",
+  "Comment": "DENY framing and HSTS with includeSubDomains; see infra/cloudfront/apply-security-headers.sh",
+  "SecurityHeadersConfig": {
+    "StrictTransportSecurity": {
+      "Override": true,
+      "IncludeSubdomains": true,
+      "Preload": false,
+      "AccessControlMaxAgeSec": 31536000
+    },
+    "FrameOptions": { "Override": true, "FrameOption": "DENY" },
+    "ContentTypeOptions": { "Override": true },
+    "ReferrerPolicy": { "Override": true, "ReferrerPolicy": "strict-origin-when-cross-origin" },
+    "XSSProtection": { "Override": true, "Protection": true, "ModeBlock": true }
+  }
+}

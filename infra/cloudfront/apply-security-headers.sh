@@ -10,17 +10,29 @@
 # not a code difference — FloraSense simply never had a response-headers
 # policy attached.
 #
-# Managed-SecurityHeadersPolicy supplies exactly those four and is maintained
-# by AWS, so there is nothing of ours to keep up to date. It is attached to the
-# default behaviour, which serves the site; /predict* and /health are JSON API
-# behaviours where these headers do nothing useful.
+# This is a custom policy rather than AWS's managed one, which was tried first.
+# The managed policy sends X-Frame-Options: SAMEORIGIN and HSTS without
+# includeSubDomains; SecureView, SecureBin, SkillView and Quizzee all send DENY
+# and includeSubDomains, and FloraSense frames nothing, so there was no reason
+# to be the weak one.
+#
+# It deliberately sets no Content-Security-Policy. The page already ships one in
+# a <meta> tag, and when both are present the browser enforces the intersection
+# — so a header CSP that did not exactly mirror the page's would silently break
+# the site while looking like hardening.
+#
+# Attached to the default behaviour, which serves the site; /predict* and
+# /health are JSON API behaviours where these headers do nothing useful.
 #
 # The distributions are not part of florasense-stack, which owns only the
 # function, its repository and the invoke permissions, so this is applied here
 # rather than in the template.
 set -euo pipefail
 
-POLICY_ID="67f7725c-6f97-4210-82d7-5512b31e9d03"   # Managed-SecurityHeadersPolicy
+# florasense-security-headers. Recreate with:
+#   aws cloudfront create-response-headers-policy \
+#     --response-headers-policy-config file://infra/cloudfront/security-headers-policy.json
+POLICY_ID="ee0459f4-3edc-41c6-b91b-4fc2b5f3194a"
 PROD="E2J826Z4CU0GAI"
 DEV="E2KS7KR6VDA6ZP"
 
